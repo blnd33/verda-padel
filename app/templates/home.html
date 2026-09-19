@@ -1,0 +1,48 @@
+{% extends 'base.html' %}{% from 'macros.html' import product_card,media_tag with context %}{% block content %}
+{% set hero_mode = media_mode('hero') %}
+<section class="v-hero{{ ' has-media' if hero_mode != 'illustration' }}">{% if hero_mode != 'illustration' %}{{ media_tag('hero','v-media') }}<span class="v-scrim" aria-hidden="true"></span>{% else %}<span class="v-flood" aria-hidden="true"></span><div class="v-dots" aria-hidden="true"></div>{% endif %}<div class="v-hero-in">{% if settings.configured or settings.demo_mode %}<span class="v-live"><span class="v-pulse" aria-hidden="true"></span>{{ t('Open today') }} <b dir="ltr">{{ '%02d'|format(settings.opening_hour) }}:00 — {{ '%02d'|format(settings.closing_hour) }}:00</b></span>{% endif %}<h1>{{ content('hero_title',t('Good days start on court.')) }}</h1><p>{{ content('hero_text',t('Bring your people. Find your rhythm. Make the next game yours.')) }}</p><div class="v-hero-act"><a href="/booking/" class="btn btn-primary">{{ t('Find your court') }} →</a><a href="/store/" class="btn btn-outline">{{ t('Explore the store') }}</a></div></div></section>
+
+<section class="section-pad" style="padding-top:0">
+<div class="v-bento">
+  {% if settings.discount_percentage and (settings.configured or settings.demo_mode) %}
+  <article class="v-tile v-t2"><div><span class="eyebrow">{{ t('Court discount') }}</span><div class="v-big is-grn">{{ settings.discount_percentage }}%</div></div><div><p class="v-sub" dir="ltr">{{ '%02d'|format(settings.discount_start_hour) }}:00 — {{ '%02d'|format(settings.discount_end_hour) }}:00</p><p class="v-sub">{{ t('Applied automatically to eligible hours.') }}</p></div></article>
+  {% else %}
+  <a class="v-tile v-t2" href="/booking/"><div><span class="eyebrow">{{ t('MAKE YOUR NEXT MOVE') }}</span><h3>{{ t('Your court. Your time.') }}</h3></div><div><p class="v-sub">{{ t('Choose a court and send a booking request. Our team will confirm your game.') }}</p><span class="text-link">{{ t('View availability') }} →</span></div></a>
+  {% endif %}
+
+  {% if settings.configured or settings.demo_mode %}
+  <article class="v-tile"><span class="eyebrow">{{ t('Open daily') }}</span><div><div class="v-big" dir="ltr">{{ '%02d'|format(settings.opening_hour) }}<span class="v-dash">—</span>{{ '%02d'|format(settings.closing_hour) }}</div><p class="v-sub">{{ t('Last court starts one hour before closing.') }}</p></div></article>
+  {% endif %}
+
+  {% if settings.price_per_hour and (settings.configured or settings.demo_mode) %}
+  {% set two_rates = settings.evening_rate and settings.evening_rate != settings.price_per_hour %}
+  <article class="v-tile v-rates{{ ' is-rotating' if two_rates }}"><span class="eyebrow">{{ t('Hourly rate') }}</span>
+    <div class="v-rate-stage">
+      <div class="v-rate is-a"><div class="v-big is-grn">{{ settings.price_per_hour|iqd }}</div><p class="v-sub"><bdi>IQD</bdi> · {{ t('Daytime') }} <bdi dir="ltr">{{ '%02d'|format(settings.opening_hour) }}:00 — {{ '%02d'|format(settings.evening_start_hour) }}:00</bdi></p></div>
+      {% if two_rates %}<div class="v-rate is-b"><div class="v-big is-grn">{{ settings.evening_rate|iqd }}</div><p class="v-sub"><bdi>IQD</bdi> · {{ t('Evening') }} <bdi dir="ltr">{{ '%02d'|format(settings.evening_start_hour) }}:00 — {{ '%02d'|format(settings.evening_end_hour) }}:00</bdi></p></div>{% endif %}
+    </div>
+  </article>
+  {% endif %}
+
+  {% if courts %}<article class="v-tile"><span class="eyebrow">{{ t('On site') }}</span><div><div class="v-big is-grn">{{ courts|length }}</div><p class="v-sub">{{ t('Courts') if courts|length != 1 else t('Court') }}</p></div></article>{% endif %}
+
+  {% for court in courts %}
+  <a class="v-tile v-court is-c{{ loop.index0 % 3 + 1 }}{{ ' has-photo' if court.image_url }}" href="/booking/?court={{ court.id }}">
+    {% if court.image_url %}<img class="v-media" src="{{ court.image_url }}" alt="" loading="lazy"><span class="v-scrim" aria-hidden="true"></span>{% else %}<span class="v-court-art" aria-hidden="true"></span>{% endif %}
+    <div><span class="eyebrow">{{ t('Court') }} {{ '%02d'|format(loop.index) }}</span><h3>{{ court.name }}</h3></div>
+    <div>{% if court.location %}<span class="v-tag">{{ court.location }}</span>{% endif %}{% if settings.configured or settings.demo_mode %}<p class="v-sub price" dir="ltr">{{ (court.price_per_hour if court.price_per_hour is not none else settings.price_per_hour)|iqd }} <small>IQD / {{ t('hour') }}</small></p>{% else %}<p class="v-sub">{{ t('Pricing to be confirmed') }}</p>{% endif %}</div>
+  </a>
+  {% else %}
+  <article class="v-tile v-t2"><div><h3>{{ t('Your next game is on its way.') }}</h3></div><div><p class="v-sub">{{ t('Court details and booking availability will appear here once confirmed.') }}</p><a href="/contact" class="text-link">{{ t('Stay in touch') }} →</a></div></article>
+  {% endfor %}
+</div>
+</section>
+
+<div class="brand-band"><span>{{ t('More than a game') }}</span><span aria-hidden="true">✳</span><span>{{ t('Made for connection') }}</span><span aria-hidden="true">✳</span><span>{{ t('See you on court') }}</span></div>
+
+{% if (settings.content or {}).get('show_about',true) %}<section class="intro-section section-pad" id="discover"><span class="eyebrow">01 / {{ t('THE VERDA FEELING') }}</span><div><h2>{{ t('A court. Your people. Endless possibilities.') }}</h2><p>{{ t('For your first rally, your weekly match, and everything in between. Make space for a game you’ll want to come back to.') }}</p><a class="text-link" href="/about">{{ t('Get to know Verda') }} →</a></div></section>{% endif %}
+
+{% if (settings.content or {}).get('show_products',true) %}<section class="section-pad"><div class="section-heading"><div><span class="eyebrow">02 / {{ t('THE ESSENTIALS') }}</span><h2>{{ t('Bring your best game.') }}</h2></div><a class="text-link" href="/store/">{{ t('Explore the store') }} →</a></div><div class="product-grid">{% for p in products %}{{ product_card(p) }}{% else %}<p class="muted">{{ t('Our collection is being prepared.') }}</p>{% endfor %}</div></section>{% endif %}
+
+<section class="final-cta"><span class="v-flood" aria-hidden="true"></span><span class="eyebrow">{{ t('THE NEXT POINT IS YOURS') }}</span><h2>{{ t('Less scrolling. More playing.') }}</h2><a href="/booking/" class="btn btn-primary">{{ t('Book a court') }} →</a></section>
+{% endblock %}

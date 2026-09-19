@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.pytest_cache/
+instance/
+.env
+app/static/uploads/
+*.db
+*.sqlite*
+*.log
+
+# local backups
+*.bak
