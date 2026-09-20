@@ -299,5 +299,8 @@ def test_barcode_exports_and_exclusions(app,staff):
     assert staff.get('/pos/scan?barcode=TEST-001').json['id']==1
     assert 'cost_price' not in staff.get('/pos/scan?barcode=TEST-001').json
     assert staff.get('/admin/reports?export=csv').data.startswith(b'\xef\xbb\xbf')
-    for path in ['/training','/tapane/webhook','/sw.js','/manifest.json','/offline','/gaming']:
+    # /sw.js is served from the root on purpose: a service worker can only control
+    # the paths at or below its own URL, so it cannot live under /static.
+    assert staff.get('/sw.js').status_code==200
+    for path in ['/training','/tapane/webhook','/manifest.json','/offline','/gaming']:
         assert staff.get(path).status_code==404

@@ -31,6 +31,15 @@ def information():
 def robots():
     return 'User-agent: *\nDisallow: /admin\nDisallow: /pos\nDisallow: /auth\nDisallow: /booking/confirmation\nDisallow: /store/confirmation\n', 200, {'Content-Type':'text/plain'}
 
+@main.get('/sw.js')
+def service_worker():
+    from flask import current_app, send_from_directory
+    response = send_from_directory(current_app.static_folder, 'sw.js')
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Service-Worker-Allowed'] = '/'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
 @booking.route('/',methods=['GET','POST'])
 def book():
     s=core.settings()

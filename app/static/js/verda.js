@@ -31,3 +31,63 @@ const quick=document.querySelector('[data-quick-sale]');
 if(quick){const update=()=>{let total=0;quick.querySelectorAll('[data-unit-price]').forEach(input=>total+=Number(input.value||0)*Number(input.dataset.unitPrice));const subtotal=quick.querySelector('[data-subtotal]');if(subtotal)subtotal.textContent=`${total.toLocaleString('en-US')} IQD`;const discount=Number(quick.querySelector('[name="discount"]')?.value||0);const kind=quick.querySelector('[name="discount_kind"]')?.value;total=Math.max(0,total-(kind==='percentage'?Math.round(total*discount/100):discount));const output=quick.querySelector('[data-quick-total]');if(output)output.textContent=`${total.toLocaleString('en-US')} IQD`;};quick.addEventListener('input',update);quick.querySelector('[data-clear-basket]')?.addEventListener('click',()=>{quick.querySelectorAll('[data-unit-price]').forEach(input=>input.value=0);update();});const scanner=quick.querySelector('[data-quick-scan]');scanner?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();const code=scanner.value.trim();const row=Array.from(quick.querySelectorAll('[data-barcode]')).find(el=>el.dataset.barcode===code);const status=quick.querySelector('[data-scan-status]');if(row){const input=row.querySelector('[data-unit-price]');input.value=Number(input.value||0)+1;row.hidden=false;row.scrollIntoView({block:'nearest'});status.textContent=row.dataset.productName;update();}else{status.textContent=status.dataset.notFound;}scanner.value='';}});update();}
 document.querySelectorAll('[data-elapsed]').forEach(node=>{const start=Date.parse(node.dataset.start+'Z');const end=node.dataset.end?Date.parse(node.dataset.end+'Z'):null;const paint=()=>{const seconds=Math.max(0,Math.floor(((end||Date.now())-start)/1000));node.textContent=[Math.floor(seconds/3600),Math.floor(seconds/60)%60,seconds%60].map(n=>String(n).padStart(2,'0')).join(':');};paint();if(!end)setInterval(paint,1000);});
 if(document.querySelector('[data-auto-print="true"]')){const key='verda-printed-'+document.querySelector('[data-auto-print]').dataset.reference;if(!sessionStorage.getItem(key)){sessionStorage.setItem(key,'1');window.addEventListener('load',()=>window.print());}}
+
+/* ── Mobile enhancements ── */
+
+/* Scroll reveal: animate tiles, cards, panels as they enter the viewport */
+if('IntersectionObserver' in window&&!matchMedia('(prefers-reduced-motion:reduce)').matches){
+  const srTargets=document.querySelectorAll('.site-public .v-tile,.site-public .product-card,.site-public .court-card,.site-public .panel,.site-public .v-hero-in,.site-public .section-heading,.v-shead,.site-public .page-heading,.site-public .confirmation,.site-public .v-bento');
+  const io=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('v-in');io.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -36px 0px'});
+  srTargets.forEach((el,i)=>{
+    el.classList.add('v-sr');
+    const siblings=el.parentElement?Array.from(el.parentElement.children).filter(c=>c.classList.contains(el.classList[0])):[];
+    const idx=siblings.indexOf(el);
+    if(idx>0&&idx<5)el.classList.add('v-sr-d'+idx);
+    io.observe(el);
+  });
+}
+
+/* Submit loading state — show spinner, disable button to prevent double-tap */
+document.querySelectorAll('.site-public form').forEach(form=>{
+  form.addEventListener('submit',function(){
+    const btn=this.querySelector('button[type=submit],button:not([type=button]):not([type=reset])');
+    if(!btn||btn.disabled)return;
+    const orig=btn.innerHTML;
+    btn.disabled=true;
+    btn.innerHTML='<span class="v-btn-spinner"></span>';
+    setTimeout(()=>{btn.disabled=false;btn.innerHTML=orig;},10000);
+  });
+});
+
+/* Sticky bottom booking bar — appears on mobile when a slot is selected */
+(()=>{
+  const grid=document.querySelector('.site-public .slot-grid');
+  if(!grid)return;
+  const bar=document.createElement('div');
+  bar.className='v-book-bar site-public';
+  bar.innerHTML='<div class="v-book-bar-info"><small id="vbb-time"></small><strong id="vbb-price">—</strong></div><button class="btn btn-primary" id="vbb-btn">Book now →</button>';
+  document.body.appendChild(bar);
+  const timeEl=bar.querySelector('#vbb-time');
+  const priceEl=bar.querySelector('#vbb-price');
+  const bookBtn=bar.querySelector('#vbb-btn');
+  bookBtn.addEventListener('click',()=>{
+    const form=document.getElementById('booking-form');
+    if(form){const submit=form.querySelector('button[type=submit]');if(submit)submit.click();}
+  });
+  grid.addEventListener('change',e=>{
+    if(!e.target.matches('input[name="hour"]'))return;
+    const r=e.target;
+    timeEl.textContent=r.closest('.time-slot').querySelector('b').textContent;
+    const price=Number(r.dataset.price||0);
+    priceEl.textContent=price?price.toLocaleString('en-US')+' IQD':'—';
+    bar.classList.add('is-open');
+  });
+})();
+
+/* Toast helper (used by other scripts) */
+window.vToast=function(msg){
+  let t=document.getElementById('v-toast-el');
+  if(!t){t=document.createElement('div');t.id='v-toast-el';t.className='v-toast site-public';document.body.appendChild(t);}
+  t.textContent=msg;t.classList.add('v-toast-show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('v-toast-show'),2600);
+};

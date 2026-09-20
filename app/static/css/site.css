@@ -683,12 +683,74 @@ html[data-theme="dark"] .site-public .agency-credit img{filter:brightness(0) inv
   .site-public .cart-link .lbl{display:none}
   .v-hero-act{flex-direction:column;align-items:stretch}
   .v-hero-act .btn{width:100%}
+
+  /* swipeable time slots */
+  .site-public .slot-grid{
+    display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    gap:8px;padding-bottom:6px}
+  .site-public .slot-grid::-webkit-scrollbar{display:none}
+  .site-public .time-slot{flex:0 0 88px;scroll-snap-align:start}
 }
 @media(max-width:400px){
   .site-public .product-grid{grid-template-columns:minmax(0,1fr)}
   .site-public .slot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .site-public .brand-word{display:none}
 }
+
+/* ==========================================================================
+   Mobile enhancements
+   ========================================================================== */
+
+/* Tap feedback — scale on touch for interactive elements */
+@media(hover:none)and(pointer:coarse){
+  .site-public .btn:active{transform:scale(.95)!important;transition:transform .08s ease}
+  .site-public .v-tile:active{transform:scale(.97)!important;transition:transform .08s ease}
+  .site-public .product-card:active,.site-public .court-card:active{transform:scale(.98)!important;transition:transform .08s ease}
+  .site-public .time-slot:not(.unavailable):active>span{transform:scale(.94);transition:transform .08s ease}
+  .site-public .icon-button:active{transform:scale(.9)!important;transition:transform .08s ease}
+}
+
+/* Scroll reveal */
+@media(prefers-reduced-motion:no-preference){
+  .v-sr{opacity:0;transform:translateY(22px);
+    transition:opacity .55s ease,transform .58s cubic-bezier(.2,.8,.3,1)}
+  .v-sr.v-in{opacity:1;transform:none}
+  .v-sr-d1{transition-delay:.07s}
+  .v-sr-d2{transition-delay:.14s}
+  .v-sr-d3{transition-delay:.21s}
+  .v-sr-d4{transition-delay:.28s}
+}
+
+/* Submit loading spinner */
+.v-btn-spinner{display:inline-block;width:16px;height:16px;border:2.5px solid currentColor;
+  border-top-color:transparent;border-radius:50%;
+  animation:v-spin .65s linear infinite;vertical-align:middle;margin-inline-end:6px}
+@keyframes v-spin{to{transform:rotate(360deg)}}
+
+/* Sticky bottom booking bar (mobile) */
+.v-book-bar{
+  position:fixed;bottom:0;left:0;right:0;z-index:200;
+  background:var(--surf);border-top:1px solid var(--line2);
+  padding:14px var(--gut) calc(14px + env(safe-area-inset-bottom));
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  box-shadow:0 -8px 28px #00000014;
+  transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.8,.3,1)}
+.v-book-bar.is-open{transform:translateY(0)}
+.v-book-bar-info small{font-size:11px;color:var(--mut);display:block}
+.v-book-bar-info strong{font-family:var(--disp);font-size:22px;font-weight:800;color:var(--grn)}
+.v-book-bar .btn{flex:none;min-width:140px}
+
+/* Toast */
+.v-toast{
+  position:fixed;bottom:90px;left:50%;z-index:9000;
+  transform:translateX(-50%) translateY(10px);
+  background:var(--txt);color:var(--bg);
+  padding:11px 20px;border-radius:99px;font-size:14px;font-weight:500;
+  opacity:0;transition:opacity .22s,transform .22s;
+  pointer-events:none;white-space:nowrap;max-width:calc(100vw - 40px);text-align:center}
+.v-toast.v-toast-show{opacity:1;transform:translateX(-50%) translateY(0)}
+
 @media(prefers-reduced-motion:reduce){
   .site-public *,.site-public *:before,.site-public *:after{
     transition:none!important;animation:none!important;transform:none!important}
