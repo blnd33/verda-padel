@@ -4,15 +4,7 @@
 if(matchMedia('(prefers-reduced-motion: reduce)').matches){document.querySelectorAll('video.v-media').forEach(video=>{video.removeAttribute('autoplay');video.pause();});}
 /* Preloader: leave as soon as the page is ready, but hold a beat so a fast load
    does not read as a flicker. The CSS clears the overlay on its own if this never runs. */
-(()=>{const overlay=document.querySelector('[data-loader-overlay]');if(!overlay)return;const start=performance.now();
-/* Reveal the loader video only once the browser proves it can decode it (HEVC is
-   not universally supported). Anything else leaves the logo fallback in place. */
-const clip=overlay.querySelector('[data-loader-video]');
-if(clip&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
-  const reveal=()=>{overlay.classList.add('video-ready');clip.play().catch(()=>overlay.classList.remove('video-ready'));};
-  clip.readyState>=3?reveal():clip.addEventListener('canplay',reveal,{once:true});
-  clip.addEventListener('error',()=>overlay.classList.remove('video-ready'),{once:true});
-}const dismiss=()=>{overlay.classList.add('is-done');try{sessionStorage.setItem('verda-seen','1');}catch(e){}};const HOLD=5000;const settle=()=>setTimeout(dismiss,Math.max(0,HOLD-(performance.now()-start)));document.readyState==='complete'?settle():addEventListener('load',settle,{once:true});})();
+(()=>{const overlay=document.querySelector('[data-loader-overlay]');if(!overlay)return;const start=performance.now();const dismiss=()=>{overlay.classList.add('is-done');try{sessionStorage.setItem('verda-seen','1');}catch(e){}};const HOLD=5000;const settle=()=>setTimeout(dismiss,Math.max(0,HOLD-(performance.now()-start)));document.readyState==='complete'?settle():addEventListener('load',settle,{once:true});})();
 document.querySelectorAll('[data-theme-toggle]').forEach(button=>button.addEventListener('click',()=>{const root=document.documentElement;const system=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';const current=root.getAttribute('data-theme')||system;const next=current==='dark'?'light':'dark';if(next===system){root.removeAttribute('data-theme');}else{root.setAttribute('data-theme',next);}try{next===system?localStorage.removeItem('verda-theme'):localStorage.setItem('verda-theme',next);}catch(e){}}));
 document.querySelectorAll('[data-language-switch]').forEach(select=>select.addEventListener('change',()=>location.assign(select.value)));
 document.querySelectorAll('.menu-toggle').forEach(button=>button.addEventListener('click',()=>{const menu=document.getElementById(button.getAttribute('aria-controls'));if(menu){const open=menu.classList.toggle('open');button.setAttribute('aria-expanded',String(open));}}));
@@ -26,6 +18,12 @@ const deliveryChoices=document.querySelectorAll('[data-delivery-choice]');
 function updateDelivery(){const delivery=document.querySelector('[data-delivery-choice]:checked')?.value==='delivery';const fields=document.querySelector('[data-delivery-fields]');if(fields){fields.hidden=!delivery;fields.querySelectorAll('input,textarea').forEach(el=>{el.disabled=!delivery;el.required=delivery;});}const fee=document.querySelector('[data-delivery-fee]');const total=document.querySelector('[data-checkout-total]');if(fee&&total){const amount=delivery?Number(fee.dataset.deliveryFee):0;fee.textContent=`${amount.toLocaleString('en-US')} IQD`;total.textContent=`${(Number(total.dataset.checkoutTotal)+amount).toLocaleString('en-US')} IQD`;}}
 deliveryChoices.forEach(input=>input.addEventListener('change',updateDelivery));if(deliveryChoices.length)updateDelivery();
 document.querySelectorAll('[data-remove-item]').forEach(button=>button.addEventListener('click',()=>{button.form.querySelector('input[name="quantity"]').value=0;button.removeAttribute('name');}));
+/* Guard one-click destructive row actions. Without JS the form still submits,
+   so this adds a check rather than being the thing that makes it work. */
+document.querySelectorAll('[data-confirm]').forEach(control=>control.addEventListener('click',event=>{if(!confirm(control.dataset.confirm))event.preventDefault();}));
+/* Declining needs a reason. The field carries a usable default so the form works
+   with scripting off; this just lets staff replace it without leaving the list. */
+document.querySelectorAll('[data-reason-prompt]').forEach(button=>button.addEventListener('click',event=>{const field=button.form&&button.form.querySelector('input[name="reason"]');const given=prompt(button.dataset.reasonPrompt,field?field.value:'');if(given===null){event.preventDefault();return;}const text=given.trim();if(field&&text)field.value=text.slice(0,255);}));
 document.querySelectorAll('[data-print]').forEach(button=>button.addEventListener('click',()=>window.print()));
 document.querySelectorAll('[data-select-all]').forEach(input=>input.addEventListener('change',()=>document.querySelectorAll('input[name="ids"]').forEach(item=>item.checked=input.checked)));
 document.querySelectorAll('[data-catalog-search],[data-catalog-category]').forEach(input=>input.addEventListener('input',()=>{const query=(document.querySelector('[data-catalog-search]')?.value||'').toLocaleLowerCase();const category=document.querySelector('[data-catalog-category]')?.value||'';document.querySelectorAll('[data-product-name]').forEach(card=>{card.hidden=!card.dataset.productName.toLocaleLowerCase().includes(query)||(category&&card.dataset.category!==category);});}));

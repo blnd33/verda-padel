@@ -14,9 +14,25 @@ def index():
         record=core.start_session(request.form)
         return redirect(f'/pos/session/{record.id}')
     sessions=POSSession.query.filter(POSSession.status.in_(['active','stopped'])).all()
-    return render_template('pos/index.html',title='Cashier',courts=Stadium.query.filter_by(is_active=True,show_in_pos=True).all(),
+    courts=Stadium.query.filter_by(is_active=True,show_in_pos=True).all()
+    return render_template('pos/index.html',title='Cashier',courts=courts,
         tables=Table.query.filter_by(is_active=True).all(),sessions=sessions,occupied={s.occupancy_key:s for s in sessions if s.occupancy_key},
+        rate_bands={c.id:court_rate_bands(c) for c in courts},venue_clock=core.local(core.now()),
         bookings=Booking.query.filter_by(status='confirmed').order_by(Booking.starts_at).limit(50).all())
+
+def court_rate_bands(court):
+    """The rate windows a cashier is about to bill against, straight from the same
+    rules() the pricing engine uses, so the card can never drift from the charge."""
+    rule=core.rules(court)
+    hour=core.local(core.now()).hour
+    day=dict(kind='Daytime',rate=int(rule['rate']),
+        start=core.settings().opening_hour,end=rule['evening_start_hour'])
+    if not rule['evening_rate'] or rule['evening_rate']==rule['rate']:
+        return [dict(day,start=core.settings().opening_hour,end=core.settings().closing_hour,current=True)]
+    evening=dict(kind='Evening',rate=int(rule['evening_rate']),
+        start=rule['evening_start_hour'],end=rule['evening_end_hour'])
+    in_evening=core.within_window(hour,evening['start'],evening['end'])
+    return [dict(day,current=not in_evening),dict(evening,current=in_evening)]
 
 @pos.route('/session/<int:session_id>',methods=['GET','POST'])
 @require('pos')

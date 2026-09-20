@@ -119,22 +119,7 @@ body.site-public{
 .v-loader>*{grid-area:1/1}
 .v-loader.is-done{animation:v-loader-out .7s cubic-bezier(.4,0,.2,1) forwards}
 @keyframes v-loader-out{from{opacity:1}to{opacity:0;visibility:hidden;pointer-events:none}}
-/* Branded loader video. The logo + glow + bar underneath is not decoration:
-   it is the fallback. The video is HEVC, which Firefox and many Chrome installs
-   cannot decode, so it only fades in once the browser confirms it can play.
-   If it errors or never becomes ready, the logo treatment simply stays. */
-/* The clip is square (1440x1440). Filling the screen would crop it hard at any
-   other aspect ratio, so it sits contained and centred instead, sized off the
-   SHORTER viewport axis. min(vw,vh) means it fits a phone, a landscape phone
-   and a wide desktop without ever cropping or overflowing. */
-.v-loader-video{z-index:1;width:min(74vw,74vh,560px);height:auto;aspect-ratio:1/1;
-  object-fit:contain;border-radius:22px;pointer-events:none;background:#0D3325;
-  box-shadow:0 26px 80px #0000004d;
-  opacity:0;transform:scale(.965);will-change:opacity,transform;
-  transition:opacity .5s cubic-bezier(.4,0,.2,1),transform .65s cubic-bezier(.2,.7,.3,1)}
-.v-loader.video-ready .v-loader-video{opacity:1;transform:scale(1)}
-.v-loader.video-ready .v-loader-in{opacity:0;transition:opacity .4s ease}
-.v-loader-in{position:relative;z-index:0;display:flex;flex-direction:column;align-items:center;gap:26px;padding:24px}
+.v-loader-in{position:relative;display:flex;flex-direction:column;align-items:center;gap:26px;padding:24px}
 .v-loader-glow{position:absolute;top:44%;left:50%;width:min(78vw,430px);aspect-ratio:1/1;
   border-radius:50%;pointer-events:none;
   background:radial-gradient(circle,var(--glow) 0%,transparent 68%);
@@ -222,6 +207,13 @@ html[data-theme="dark"] .site-public .brand img{filter:brightness(0) invert(1)}
 .site-public .header-actions{display:flex;align-items:center;gap:10px}
 .site-public .language-picker select{border:1px solid var(--line2);background:transparent;
   color:var(--txt);padding:9px 8px;border-radius:99px;font-size:13px;min-height:42px;width:auto}
+/* two languages only, so this is a direct toggle rather than a dropdown */
+.site-public .lang-toggle{display:inline-flex;align-items:center;gap:7px;flex:none;
+  font-size:13px;font-weight:500;color:var(--mut);border:1px solid var(--line2);
+  padding:0 14px;min-height:42px;border-radius:99px;white-space:nowrap;
+  transition:color .16s,border-color .16s}
+.site-public .lang-toggle:hover{color:var(--txt);border-color:var(--grn)}
+.site-public .lang-toggle svg{width:16px;height:16px;flex:none}
 .site-public .cart-link{display:inline-flex;align-items:center;gap:7px;font-size:13px;
   font-weight:500;color:var(--mut);border:1px solid var(--line2);padding:0 14px;
   min-height:42px;border-radius:99px}
@@ -610,6 +602,40 @@ html[data-theme="dark"] .site-public .agency-credit img{filter:brightness(0) inv
 @media (prefers-color-scheme:dark){
   html:not([data-theme="light"]) .site-public .agency-credit img{filter:brightness(0) invert(1)}
 }
+
+/* ==========================================================================
+   Arabic / RTL typography
+   Latin metrics do not transfer. Arabic is a connected script, so the negative
+   tracking tuned for Outfit crushes the letter joins, and a 1.04 line-height
+   clips ascenders and diacritics. Arabic also renders in Rubik (Outfit has no
+   Arabic coverage), so it gets its own spacing throughout.
+   ========================================================================== */
+[dir=rtl] .site-public h1,[dir=rtl] .site-public h2,
+[dir=rtl] .site-public h3,[dir=rtl] .site-public h4{letter-spacing:0;line-height:1.38}
+[dir=rtl] .site-public .v-hero h1{letter-spacing:0;line-height:1.32;
+  font-size:clamp(34px,7vw,70px);margin-bottom:24px}
+[dir=rtl] .site-public .page-heading h1,[dir=rtl] .site-public .phead h1,
+[dir=rtl] .site-public .final-cta h2,[dir=rtl] .site-public .confirmation h1{letter-spacing:0;line-height:1.35}
+[dir=rtl] .site-public .section-heading h2,[dir=rtl] .site-public .v-shead h2,
+[dir=rtl] .site-public .intro-section h2{line-height:1.4}
+/* tracked uppercase labels are a Latin device — Arabic has no case and the
+   wide tracking breaks the joins, so they run in the body face at normal spacing */
+[dir=rtl] .site-public .eyebrow{font-family:var(--body);letter-spacing:.02em;
+  text-transform:none;font-size:12px;font-weight:500}
+[dir=rtl] .site-public .steps span,[dir=rtl] .site-public .v-chip,
+[dir=rtl] .site-public .v-tag,[dir=rtl] .site-public .status,
+[dir=rtl] .site-public .pcat{font-family:var(--body);letter-spacing:0}
+[dir=rtl] .site-public .btn,[dir=rtl] .site-public .text-link,
+[dir=rtl] .site-public .text-button,[dir=rtl] .site-public .public-nav a{letter-spacing:0}
+/* more air between lines and between stacked blocks */
+[dir=rtl] .site-public p,[dir=rtl] .site-public .v-sub,
+[dir=rtl] .site-public li,[dir=rtl] .site-public dd,[dir=rtl] .site-public dt{line-height:1.9}
+[dir=rtl] .site-public .help-text{line-height:1.95}
+[dir=rtl] .site-public .v-tile{gap:18px}
+[dir=rtl] .site-public .field>span{line-height:1.7}
+/* numerals and clock ranges stay in the mono face, which has no Arabic anyway */
+[dir=rtl] .site-public .v-big{letter-spacing:-.02em;line-height:1.1}
+[dir=rtl] .site-public .footer-top h2{letter-spacing:.04em;line-height:1.2}
 
 /* ==========================================================================
    Responsive

@@ -29,6 +29,13 @@ def authorize(permission):
     if not current_user.is_authenticated or not current_user.allowed(permission):
         abort(403)
 
+def safe_admin_next(target):
+    """Only ever return to a path inside the workspace, so a posted 'next' cannot
+    be used to bounce a signed-in staff member somewhere else."""
+    if not target or not target.startswith('/admin/') or target.startswith('//') or '\\' in target:
+        return None
+    return target
+
 def safe_image(file):
     if not file or not file.filename:
         return None
@@ -262,7 +269,7 @@ def booking_detail(record_id):
             core.create_booking(request.form,public=False,existing=record)
         else:
             core.decide_booking(record,action,request.form.get('reason',''))
-        return redirect(f'/admin/bookings/{record.id}')
+        return redirect(safe_admin_next(request.form.get('next')) or f'/admin/bookings/{record.id}')
     if not (permitted('bookings') or (permitted('cancellations') and record.status=='pending_cancel')):
         abort(403)
     return render_template('admin/booking_edit.html',title='Booking details',record=record,courts=Stadium.query.all())
