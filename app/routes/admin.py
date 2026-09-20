@@ -177,7 +177,7 @@ def manage(module,record_id=None):
             barcode=data.get('barcode','')
             if barcode and (len(barcode)>48 or not barcode.isascii() or not barcode.isprintable()):
                 raise core.RuleError('Use a printable ASCII barcode up to 48 characters.')
-            data['barcode']=barcode or ('VP'+secrets.token_hex(6).upper())
+            data['barcode']=barcode.upper() if barcode else ('VP'+secrets.token_hex(6).upper())
         creating=record is None
         record=record or model()
         for key,value in data.items():
@@ -186,7 +186,7 @@ def manage(module,record_id=None):
             if password:
                 record.set_password(password)
             record.permissions=[p for p in request.form.getlist('permissions') if p in PERMISSIONS]
-            record.is_admin=True
+            record.sync_role_flags()
             record.session_version=(record.session_version or 0)+1
         if module=='expenses':
             record.created_by=record.created_by or core.actor()
@@ -199,9 +199,8 @@ def manage(module,record_id=None):
         # Store dates as strings in JSON audit history; passwords are never logged.
         before={k:str(v) for k,v in original.items()}
         after={k:str(v) for k,v in data.items()}
-        if not creating:
-            core.text_value(request.form.get('reason'),True)
-        core.audit('Record created' if creating else 'Record updated',record,request.form.get('reason',''),before,after)
+        reason=core.text_value(request.form.get('reason'),True) if not creating else ''
+        core.audit('Record created' if creating else 'Record updated',record,reason,before,after)
         return redirect('/admin/'+module)
     query=model.query
     q=request.args.get('q','').strip()
@@ -550,3 +549,16 @@ def settings_page():
         core.audit('Settings updated',s,request.form.get('reason',''),after={'configured':s.configured,'default_language':s.default_language})
         return redirect('/admin/settings')
     return render_template('admin/settings.html',title='Website & settings',record=s)
+
+@admin.get('/api/pending-counts')
+def pending_counts():
+    from flask import jsonify
+    from flask_login import current_user
+    if not current_user.is_authenticated:
+        return jsonify(error='Unauthorized'), 401
+    latest_booking = Booking.query.filter_by(status='pending').order_by(Booking.id.desc()).first()
+    latest_order = Order.query.filter_by(status='pending').order_by(Order.id.desc()).first()
+    return jsonify(
+        latest_booking_id=latest_booking.id if latest_booking else 0,
+        latest_order_id=latest_order.id if latest_order else 0
+    )
