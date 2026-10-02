@@ -3,6 +3,7 @@ from app import db
 from app.models import Stadium,Table,Product,Category,POSSession,POSOrderItem,POSOrder,Booking
 from app.security import require, permitted
 from app.services import core
+from app import money as currency
 
 pos=Blueprint('pos',__name__,url_prefix='/pos')
 
@@ -13,12 +14,57 @@ def index():
     if request.method=='POST':
         record=core.start_session(request.form)
         return redirect(f'/pos/session/{record.id}')
+    sweep()
     sessions=POSSession.query.filter(POSSession.status.in_(['active','stopped'])).all()
     courts=Stadium.query.filter_by(is_active=True,show_in_pos=True).all()
-    return render_template('pos/index.html',title='Cashier',courts=courts,
-        tables=Table.query.filter_by(is_active=True).all(),sessions=sessions,occupied={s.occupancy_key:s for s in sessions if s.occupancy_key},
+    return render_template('pos/index.html',title='Cashier',courts=courts,due=core.due_bookings(),
+        tabs=sorted((s for s in sessions if s.session_type=='person' and s.status=='active'),key=lambda s:s.start_time,reverse=True),
+        closed_tabs=POSSession.query.filter(POSSession.session_type=='person',POSSession.business_day==core.business_date(),
+            POSSession.finalized_at.isnot(None)).order_by(POSSession.finalized_at.desc()).limit(30).all(),
+        sessions=sessions,occupied={s.occupancy_key:s for s in sessions if s.occupancy_key},
         rate_bands={c.id:court_rate_bands(c) for c in courts},venue_clock=core.local(core.now()),
         bookings=Booking.query.filter_by(status='confirmed').order_by(Booking.starts_at).limit(50).all())
+
+def sweep():
+    """Stop booked sessions whose time is over. Runs on cashier page loads and on
+    the staff screens' regular check, since there is no background worker."""
+    stopped=core.stop_finished_bookings()
+    if stopped:
+        db.session.commit()
+    return stopped
+
+@pos.get('/api/due')
+@require('pos')
+def due_api():
+    from flask import session
+    from app.i18n import translate,clock_of
+    stopped=sweep()
+    lang=session.get('lang',core.settings().default_language)
+    t=lambda text:translate(text,lang)
+    return jsonify(
+        due=[dict(id=b.id,name=b.customer_name,phone=b.customer_phone,court=b.stadium.name if b.stadium else '',
+            starts=clock_of(core.local(b.starts_at),lang),ends=clock_of(core.local(b.ends_at),lang),hours=b.duration_hours,
+            title=t("It's {name}'s time").format(name=b.customer_name),
+            when=t('{court} · {starts} – {ends} ({hours} h)').format(court=b.stadium.name if b.stadium else '',
+                starts=clock_of(core.local(b.starts_at),lang),ends=clock_of(core.local(b.ends_at),lang),hours=b.duration_hours))
+            for b in core.due_bookings()],
+        stopped=[dict(id=s.id,url=f'/pos/session/{s.id}',
+            text=t("{name}'s booked time on {court} has ended. The timer stopped.").format(name=s.customer_name or t('Walk-in'),court=s.location_snapshot))
+            for s in stopped],
+        labels=dict(accept=t('Accept & start'),decline=t('Decline'),open=t('Open bill'),error=t('Could not start. Check the cashier page.')))
+
+@pos.post('/bookings/<int:booking_id>/start')
+@require('pos')
+def start_booking(booking_id):
+    record=core.start_booking_session(db.get_or_404(Booking,booking_id))
+    url=f'/pos/session/{record.id}'
+    return jsonify(url=url) if request.is_json else redirect(url)
+
+@pos.post('/bookings/<int:booking_id>/decline')
+@require('pos')
+def decline_booking(booking_id):
+    core.decline_booking_start(db.get_or_404(Booking,booking_id),(request.get_json(silent=True) or request.form).get('reason',''))
+    return jsonify(ok=True) if request.is_json else redirect('/pos')
 
 def court_rate_bands(court):
     """The rate windows a cashier is about to bill against, straight from the same
@@ -51,6 +97,14 @@ def session_detail(session_id):
         elif action=='quantity':
             item=db.get_or_404(POSOrderItem,core.integer(request.form.get('item_id'),1))
             core.update_item(record,item,request.form.get('quantity'))
+        elif action in ['free','line_discount']:
+            if not permitted('discounts'):
+                abort(403)
+            item=db.get_or_404(POSOrderItem,core.integer(request.form.get('item_id'),1))
+            if action=='free':
+                core.set_free_units(record,item,request.form.get('free_quantity'),request.form.get('reason'))
+            else:
+                core.set_line_discount(record,item,request.form.get('kind'),request.form.get('value',0),request.form.get('reason'))
         elif action=='finish':
             core.finish_play(record)
         elif action=='discount':
@@ -61,10 +115,18 @@ def session_detail(session_id):
             kind=request.form.get('kind')
             if kind not in ['percentage','fixed']:
                 raise core.RuleError('Choose a valid discount.')
-            value=core.integer(request.form.get('value'),0,100 if kind=='percentage' else core.session_quote(record)['original']+core.session_quote(record)['products']-core.session_quote(record)['auto_discount'])
-            record.discount_kind,record.discount_value=kind,value
+            # A fixed discount comes off one currency's total, entered in that currency.
+            code=currency.check(request.form.get('currency','IQD')) if kind=='fixed' else 'IQD'
+            if kind=='percentage':
+                value=core.integer(request.form.get('value'),0,100)
+            else:
+                record.discount_kind=None
+                quote=core.session_quote(record)
+                subtotal=quote['original']-quote['auto_discount']+quote['products'] if code=='IQD' else quote['usd']['products']
+                value=currency.parse(request.form.get('value'),code,0,subtotal)
+            record.discount_kind,record.discount_value,record.discount_currency=kind,value,code
             record.discount_note=core.text_value(request.form.get('reason'),True,200)
-            core.audit('Discount applied',record,record.discount_note,after={'kind':kind,'value':value})
+            core.audit('Discount applied',record,record.discount_note,after={'kind':kind,'value':value,'currency':code})
         elif action=='settle':
             method=request.form.get('method')
             if method=='debt' and not permitted('debts'):
@@ -74,7 +136,7 @@ def session_detail(session_id):
         elif action=='customer':
             if record.status not in ['active','stopped']:
                 raise core.RuleError('This bill is finalized.')
-            record.customer_name=core.text_value(request.form.get('customer_name'),limit=100)
+            record.customer_name=core.text_value(request.form.get('customer_name'),record.session_type=='person',100)
             record.customer_phone=core.text_value(request.form.get('customer_phone'),limit=20)
             core.audit('Bill customer updated',record)
         elif action=='preparation':
@@ -84,7 +146,7 @@ def session_detail(session_id):
             if order.session_id!=record.id or transitions.get(order.status)!=status or record.status not in ['active','stopped']:
                 raise core.RuleError('This status change is not allowed.')
             order.status=status
-            core.audit('Preparation status changed',order)
+            core.audit('Preparation status changed',order,after={'status':status})
         elif action=='void':
             if not permitted('cancellations'):
                 abort(403)
@@ -109,6 +171,7 @@ def session_detail(session_id):
         else:
             raise core.RuleError('Choose a valid action.')
         return redirect(f'/pos/session/{record.id}')
+    sweep()
     return render_template('pos/session.html',title='Current bill',record=record,quote=core.session_quote(record),
         products=core.product_query('pos').all(),categories=Category.query.filter_by(is_active=True,show_on_pos=True).all())
 
@@ -126,15 +189,17 @@ def quick():
         method=request.form.get('method')
         if method=='debt' and not permitted('debts'):
             abort(403)
-        value=core.integer(request.form.get('discount',0),0)
-        if value:
+        kind=request.form.get('discount_kind')
+        code=currency.check(request.form.get('discount_currency','IQD')) if kind=='fixed' else 'IQD'
+        raw=str(request.form.get('discount','') or '0').strip()
+        if raw not in ['0','0.0','0.00','']:
             if not permitted('discounts'):
                 abort(403)
-            kind=request.form.get('discount_kind')
             if kind not in ['percentage','fixed']:
                 raise core.RuleError('Choose a valid discount.')
-            core.integer(value,0,100 if kind=='percentage' else core.session_quote(record)['products'])
-            record.discount_kind,record.discount_value=kind,value
+            quote=core.session_quote(record)
+            value=core.integer(raw,0,100) if kind=='percentage' else currency.parse(raw,code,0,quote['totals'][code])
+            record.discount_kind,record.discount_value,record.discount_currency=kind,value,code
             record.discount_note=core.text_value(request.form.get('reason'),True,200)
             core.audit('Quick sale discount',record,record.discount_note)
         core.settle_session(record,method)
@@ -152,4 +217,4 @@ def scan():
     p=Product.query.filter_by(barcode=request.args.get('barcode')).first()
     if not core.visible_product(p,'pos'):
         abort(404)
-    return jsonify(id=p.id,name=p.name_en,price=p.price,stock=p.stock if p.track_stock else None)
+    return jsonify(id=p.id,name=p.name_en,price=p.price,currency=p.currency or 'IQD',stock=p.stock if p.track_stock else None)

@@ -20,6 +20,8 @@ class Product(db.Model):
     description_ar = db.Column(db.Text)
 
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'))
+    # Price and cost share one currency; dollars are stored in cents.
+    currency = db.Column(db.String(3), default='IQD', server_default='IQD', nullable=False)
     cost_price = db.Column(db.Integer, default=0)
     price = db.Column(db.Integer, nullable=False)
     stock = db.Column(db.Integer, default=0)

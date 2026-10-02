@@ -12,6 +12,7 @@ from flask_login import current_user
 from sqlalchemy import or_
 from app import db
 from app.models import *
+from app.money import CURRENCIES
 
 
 class RuleError(ValueError):
@@ -65,11 +66,8 @@ def customer(data):
     phone = text_value(data.get('customer_phone'), True, 20)
     if not re.fullmatch(r'[+\d() -]{7,20}', phone):
         raise RuleError('Enter a valid phone number.')
-    email = text_value(data.get('customer_email'), False, 100)
-    if email and not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', email):
-        raise RuleError('Enter a valid email address.')
-    return dict(customer_name=name, customer_phone=phone, customer_email=email or None,
-                notes=text_value(data.get('notes'), limit=1000))
+    # Guests are reached by phone; no customer email is collected.
+    return dict(customer_name=name, customer_phone=phone, notes=text_value(data.get('notes'), limit=1000))
 
 
 def actor():
@@ -270,7 +268,7 @@ def basket_lines(items, channel):
 
 
 def snapshot_product(p):
-    return dict(name_en=p.name_en, name_ar=p.name_ar, cost=p.cost_price, barcode=p.barcode)
+    return dict(name_en=p.name_en, name_ar=p.name_ar, cost=p.cost_price, barcode=p.barcode, currency=p.currency or 'IQD')
 
 
 def create_order(data, items):
@@ -283,13 +281,16 @@ def create_order(data, items):
     address = text_value(data.get('address'), method == 'delivery', 500) if method == 'delivery' else None
     lines = basket_lines(items, 'website')
     fee = s.delivery_fee if method == 'delivery' else 0
+    # The delivery fee is dinar; dollar-priced goods make a separate dollar total.
     order = Order(**details, delivery_method=method, area=area, address=address, delivery_fee=fee,
-        reference=reference(), total_price=sum(p.price*q for p,q in lines)+fee, business_day=business_date(),
+        reference=reference(), total_price=sum(p.price*q for p,q in lines if (p.currency or 'IQD') == 'IQD')+fee,
+        total_usd=sum(p.price*q for p,q in lines if p.currency == 'USD'), business_day=business_date(),
         venue_snapshot=venue_snapshot())
     db.session.add(order)
     db.session.flush()
     for p, q in lines:
-        db.session.add(OrderItem(order_id=order.id, product_id=p.id, quantity=q, price=p.price, snapshot=snapshot_product(p)))
+        db.session.add(OrderItem(order_id=order.id, product_id=p.id, quantity=q, price=p.price, currency=p.currency or 'IQD',
+                                 snapshot=snapshot_product(p)))
         stock_change(p, -q, 'Website order', order)
     audit('Order requested', order)
     notify('orders', 'New website order', f'/admin/orders/{order.id}')
@@ -317,13 +318,14 @@ def venue_snapshot():
 
 def start_session(data):
     kind = data.get('session_type')
-    if kind not in ['stadium', 'table', 'quick']:
-        raise RuleError('Choose a court or table.')
+    if kind not in ['stadium', 'person', 'quick']:
+        raise RuleError('Choose a court or open a tab for a person.')
     location = None
-    if kind != 'quick':
-        model = Stadium if kind == 'stadium' else Table
-        location = db.session.get(model, integer(data.get('location_id'), 1))
-        if not location or not location.is_active or (kind == 'stadium' and not location.show_in_pos):
+    if kind == 'person' and not text_value(data.get('customer_name'), limit=100):
+        raise RuleError('Enter the name of the person this tab belongs to.')
+    if kind == 'stadium':
+        location = db.session.get(Stadium, integer(data.get('location_id'), 1))
+        if not location or not location.is_active or not location.show_in_pos:
             raise RuleError('This location is not available.')
         key = f'{kind}:{location.id}'
         if POSSession.query.filter_by(occupancy_key=key).first():
@@ -354,7 +356,7 @@ def start_session(data):
         customer_phone=text_value(data.get('customer_phone'), limit=20), start_time=now(), created_at=now(),
         reference=reference(), booking_id=booking.id if booking else None,
         pricing_snapshot=booking.pricing_snapshot if booking else rules(location if kind=='stadium' else None),
-        venue_snapshot=venue_snapshot(), location_snapshot=location.name if location else 'Quick sale',
+        venue_snapshot=venue_snapshot(), location_snapshot=location.name if location else 'Personal tab' if kind == 'person' else 'Quick sale',
         cashier_id=actor(), business_day=business_date())
     db.session.add(record)
     db.session.flush()
@@ -362,7 +364,32 @@ def start_session(data):
     return record
 
 
+def line_currency(item):
+    return getattr(item, 'currency', None) or (item.snapshot or {}).get('currency') or 'IQD'
+
+
+def line_amounts(item):
+    """One bill line, in its own currency: free units cost the customer nothing,
+    the line discount applies to the payable units only. Website order lines
+    carry neither."""
+    price, quantity = money(item.price), item.quantity
+    free = min(getattr(item, 'free_quantity', 0) or 0, quantity)
+    payable = price * (quantity - free)
+    kind, value = getattr(item, 'discount_kind', None), getattr(item, 'discount_value', 0) or 0
+    if kind == 'percentage':
+        discount = money(Decimal(payable) * value / 100)
+    elif kind == 'fixed':
+        discount = min(payable, value)
+    else:
+        discount = 0
+    cost = (item.snapshot or {}).get('cost', 0) or 0
+    return dict(currency=line_currency(item), gross=price * quantity, free=free, free_value=price * free,
+                free_cost=cost * free, cost=cost * quantity, discount=discount, net=payable - discount)
+
+
 def session_quote(record, at=None):
+    """The bill in each currency. Court time is always dinar. The top-level
+    product/discount/total keys are the dinar side; `usd` holds the dollar side."""
     finish = record.end_time or at or now()
     seconds = max(0, (finish-record.start_time).total_seconds())
     original, auto, billed = 0, 0, 0
@@ -378,28 +405,91 @@ def session_quote(record, at=None):
         else:
             billed = max(r['minimum_minutes']*60, math.ceil(seconds/rounding)*rounding)
             original, auto = price_interval(record.start_time, billed, r)
-    products = sum(money(i.price)*i.quantity for o in record.orders for i in o.items)
-    discount = money(record.manual_discount or 0)
-    subtotal = original + products - auto
-    if record.discount_kind == 'percentage':
-        discount = money(Decimal(subtotal)*record.discount_value/100)
-    elif record.discount_kind == 'fixed':
-        discount = min(subtotal, record.discount_value)
+    lines = [line_amounts(i) for o in record.orders for i in o.items]
+    sides = {}
+    for currency in CURRENCIES:
+        mine = [l for l in lines if l['currency'] == currency]
+        products = sum(l['net'] for l in mine)
+        subtotal = products + (original - auto if currency == 'IQD' else 0)
+        if record.discount_kind == 'percentage':
+            discount = money(Decimal(subtotal)*record.discount_value/100)
+        elif record.discount_kind == 'fixed':
+            discount = min(subtotal, record.discount_value) if (record.discount_currency or 'IQD') == currency else 0
+        else:
+            # Bills from before discount kinds were recorded kept the amount itself.
+            discount = money((record.manual_discount if currency == 'IQD' else record.manual_discount_usd) or 0)
+        sides[currency] = dict(products=products, products_gross=sum(l['gross'] for l in mine),
+            free_value=sum(l['free_value'] for l in mine), free_units=sum(l['free'] for l in mine),
+            line_discounts=sum(l['discount'] for l in mine), manual_discount=discount,
+            total=max(0, subtotal-discount), items=sum(1 for l in mine))
     return dict(seconds=seconds, billed_seconds=billed, original=original, auto_discount=auto,
-        products=products, manual_discount=discount, total=max(0, subtotal-discount))
+        **{k: v for k, v in sides['IQD'].items() if k != 'items'}, usd=sides['USD'],
+        totals={c: sides[c]['total'] for c in CURRENCIES},
+        currencies=[c for c in CURRENCIES if sides[c]['items'] or sides[c]['total'] or (c == 'IQD' and (original or not sides['USD']['items']))])
 
 
-def finish_play(record):
+def finish_play(record, at=None, action='Play finished'):
     if record.status != 'active':
         if record.end_time:
             return
         raise RuleError('This session cannot be stopped.')
-    record.end_time, record.status, record.occupancy_key = now(), 'stopped', None
+    record.end_time, record.status, record.occupancy_key = at or now(), 'stopped', None
+    freeze_play(record)
+    audit(action, record)
+
+
+def freeze_play(record):
     quote = session_quote(record)
     record.play_time_minutes = math.ceil(quote['seconds']/60)
     record.play_time_price, record.auto_discount, record.total_amount = quote['original'], quote['auto_discount'], quote['total']
+    record.total_usd = quote['usd']['total']
     record.actual_seconds, record.billed_seconds = math.ceil(quote['seconds']), quote['billed_seconds']
-    audit('Play finished', record)
+
+
+def due_bookings(at=None):
+    """Confirmed bookings whose time has come and that nobody has started or
+    dismissed yet: these raise the "it's their time" prompt on staff screens."""
+    at = at or now()
+    rows = Booking.query.filter(Booking.status == 'confirmed', Booking.starts_at <= at, Booking.ends_at > at,
+                                Booking.start_prompt_declined_at.is_(None)).order_by(Booking.starts_at).all()
+    return [b for b in rows if not b.pos_sessions]
+
+
+def start_booking_session(booking):
+    """Accepting the prompt starts the court session for the booking. The timer
+    counts from the booked start, so a 3-hour booking runs its booked 3 hours."""
+    if booking.status != 'confirmed' or booking.pos_sessions or not booking.starts_at <= now() < booking.ends_at:
+        raise RuleError('This booking can no longer be started.')
+    record = start_session(dict(session_type='stadium', location_id=booking.stadium_id, booking_id=booking.id,
+                                customer_name=booking.customer_name, customer_phone=booking.customer_phone))
+    record.start_time = booking.starts_at
+    return record
+
+
+def decline_booking_start(booking, reason=''):
+    if booking.start_prompt_declined_at or booking.pos_sessions:
+        return
+    booking.start_prompt_declined_at, booking.start_prompt_declined_by = now(), actor()
+    audit('Booking start declined', booking, text_value(reason, limit=200))
+
+
+def stop_finished_bookings(at=None):
+    """Stop every running booked session whose booked time is over. The end is
+    the booked end, not the moment this runs, so billing is exactly the booking."""
+    at = at or now()
+    stopped = []
+    for record in POSSession.query.filter(POSSession.status == 'active', POSSession.booking_id.isnot(None)).all():
+        if record.booking and record.booking.ends_at <= at:
+            # Claim the row first so two screens polling at once cannot both stop it.
+            claimed = db.session.execute(db.update(POSSession).where(POSSession.id == record.id, POSSession.status == 'active')
+                .values(status='stopped', end_time=record.booking.ends_at, occupancy_key=None)).rowcount
+            if claimed != 1:
+                continue
+            db.session.refresh(record)
+            freeze_play(record)
+            audit('Booked time ended', record)
+            stopped.append(record)
+    return stopped
 
 
 def add_item(record, product_id, quantity):
@@ -412,13 +502,14 @@ def add_item(record, product_id, quantity):
         db.session.add(order)
         db.session.flush()
         db.session.expire(record, ['orders'])
-    line = POSOrderItem(order_id=order.id, product_id=p.id, quantity=q, price=p.price, snapshot=snapshot_product(p))
+    line = POSOrderItem(order_id=order.id, product_id=p.id, quantity=q, price=p.price, currency=p.currency or 'IQD',
+                        snapshot=snapshot_product(p))
     db.session.add(line)
     stock_change(p, -q, 'POS item', record)
     db.session.flush()
     db.session.expire(order, ['items'])
     order.calculate_total()
-    audit('Item added', record)
+    audit('Item added', record, after={'product': p.name_en, 'quantity': q})
 
 
 def update_item(record, item, quantity):
@@ -432,16 +523,66 @@ def update_item(record, item, quantity):
         raise RuleError('This item is no longer available.')
     stock_change(item.product, -delta, 'POS quantity correction', record)
     item.quantity = quantity
+    item.free_quantity = min(item.free_quantity or 0, quantity)
     item.order.calculate_total()
-    audit('Item quantity changed', record)
+    audit('Item quantity changed', record, before={'quantity': quantity - delta},
+          after={'quantity': quantity, 'product': (item.snapshot or {}).get('name_en')})
 
 
-def balance(obj):
-    total = money(obj.total_amount if isinstance(obj, POSSession) else obj.total_price)
-    return max(0, total - sum(p.amount for p in obj.payments))
+def editable_line(record, item):
+    if record.status not in ['active', 'stopped'] or item.order.session_id != record.id:
+        raise RuleError('This bill is finalized.')
+
+
+def set_free_units(record, item, units, reason=''):
+    """Give units of a line away. Stock was already taken when the item was added;
+    the cost stays in cost of goods, only the customer's charge drops."""
+    editable_line(record, item)
+    before = item.free_quantity or 0
+    item.free_quantity = integer(units, 0, item.quantity)
+    audit('Items given free', record, text_value(reason, limit=200),
+          before={'item': item.id, 'free': before},
+          after={'item': item.id, 'free': item.free_quantity, 'product': (item.snapshot or {}).get('name_en')})
+
+
+def set_line_discount(record, item, kind, value, reason=''):
+    editable_line(record, item)
+    before = {'item': item.id, 'kind': item.discount_kind, 'value': item.discount_value}
+    if kind == 'none':
+        item.discount_kind, item.discount_value = None, 0
+    elif kind in ['percentage', 'fixed']:
+        payable = money(item.price) * (item.quantity - (item.free_quantity or 0))
+        if kind == 'percentage':
+            item.discount_value = integer(value, 0, 100)
+        else:
+            from app.money import parse
+            item.discount_value = parse(value, line_currency(item), 0, payable)
+        item.discount_kind = kind if item.discount_value else None
+    else:
+        raise RuleError('Choose a valid discount.')
+    audit('Item discount applied', record, text_value(reason, limit=200), before=before,
+          after={'item': item.id, 'kind': item.discount_kind, 'value': item.discount_value,
+                 'currency': line_currency(item), 'product': (item.snapshot or {}).get('name_en')})
+
+
+def bill_total(obj, currency='IQD'):
+    if isinstance(obj, POSSession):
+        return money((obj.total_amount if currency == 'IQD' else obj.total_usd) or 0)
+    return money((obj.total_price if currency == 'IQD' else obj.total_usd) or 0)
+
+
+def balance(obj, currency=None):
+    """What is still owed in one currency. Without a currency this only answers
+    "is anything owed at all?" (zero or not); never display that number."""
+    if currency is None:
+        return sum(balance(obj, c) for c in CURRENCIES)
+    paid = sum(p.amount for p in obj.payments if (p.currency or 'IQD') == currency)
+    return max(0, bill_total(obj, currency) - paid)
 
 
 def settle_session(record, method):
+    """Each currency's total is settled in that currency: one payment (or one
+    debt) per currency the bill holds. Nothing is converted."""
     if record.status in ['paid','debt']:
         return
     if record.status not in ['active','stopped'] or method not in ['cash','card','debt']:
@@ -452,29 +593,38 @@ def settle_session(record, method):
     q = session_quote(record)
     record.play_time_price, record.auto_discount = q['original'], q['auto_discount']
     record.manual_discount, record.total_amount = q['manual_discount'], q['total']
+    record.manual_discount_usd, record.total_usd = q['usd']['manual_discount'], q['usd']['total']
     record.status, record.payment_method, record.finalized_at = ('debt' if method=='debt' else 'paid'), method, now()
     if record.booking:
         record.booking.status = 'completed'
-    if method == 'debt' and q['total']:
-        db.session.add(ManualDebt(name=record.customer_name, phone=record.customer_phone, amount=q['total'],
-            paid_amount=0, date=business_date(), session_id=record.id, created_by=actor()))
-    elif q['total']:
-        db.session.add(Payment(session_id=record.id, amount=q['total'], method=method, user_id=actor(), business_day=business_date()))
-    audit('Bill finalized', record, amount=q['total'], method=method)
+    for currency, total in q['totals'].items():
+        if not total:
+            continue
+        if method == 'debt':
+            db.session.add(ManualDebt(name=record.customer_name, phone=record.customer_phone, amount=total, currency=currency,
+                paid_amount=0, date=business_date(), session_id=record.id, created_by=actor()))
+        else:
+            db.session.add(Payment(session_id=record.id, amount=total, currency=currency, method=method,
+                user_id=actor(), business_day=business_date()))
+    audit('Bill finalized', record, amount=q['total'], method=method, after=q['totals'])
 
 
 def collect_debt(debt, amount, method):
-    amount = integer(amount, 1)
+    from app.money import parse
+    currency = debt.currency or 'IQD'
+    amount = parse(amount, currency, 1)
     if method not in ['cash','card'] or amount > debt.remaining or debt.status != 'open':
         raise RuleError('The collection exceeds the remaining balance or is invalid.')
-    db.session.add(Payment(debt_id=debt.id, session_id=debt.session_id, amount=amount, method=method,
+    db.session.add(Payment(debt_id=debt.id, session_id=debt.session_id, amount=amount, currency=currency, method=method,
                            user_id=actor(), business_day=business_date()))
     debt.paid_amount += amount
     debt.status = 'paid' if debt.remaining == 0 else 'open'
-    audit('Debt collected', debt, amount=amount, method=method)
+    audit('Debt collected', debt, amount=amount, method=method, after={'currency': currency})
 
 
 def refund_bill(obj, reason, restock=False):
+    """Void a bill: one adjustment per currency it holds, each collection
+    reversed in the currency and method it was received in."""
     if obj.voided:
         return
     is_session = isinstance(obj, POSSession)
@@ -483,33 +633,32 @@ def refund_bill(obj, reason, restock=False):
     if not is_session and obj.status == 'cancelled':
         raise RuleError('This order is already cancelled.')
     reason = text_value(reason, True)
-    total = money(obj.total_amount if is_session else obj.total_price)
-    paid = sum(p.amount for p in obj.payments)
     source = dict(session_id=obj.id) if is_session else dict(order_id=obj.id)
-    adjustment = Adjustment(**source, amount=total, reason=reason, user_id=actor(), business_day=business_date())
-    db.session.add(adjustment)
+    lines = [i for o in obj.orders for i in o.items] if is_session else obj.items
+    recognized = is_session or bool(obj.finalized_at)
+    for currency in CURRENCIES:
+        total = bill_total(obj, currency)
+        mine = [i for i in lines if line_currency(i) == currency]
+        if not total and not mine and not any((p.currency or 'IQD') == currency for p in obj.payments):
+            continue
+        # A pre-fulfillment refund reverses a collection, not a recognized sale.
+        db.session.add(Adjustment(**source, currency=currency, amount=total if recognized else 0, reason=reason,
+            cogs_reversal=sum((i.snapshot or {}).get('cost',0)*i.quantity for i in mine) if restock and recognized else 0,
+            user_id=actor(), business_day=business_date()))
     # Refund actual collections by their recorded methods; never refund receivables as cash.
     for payment in list(obj.payments):
         if payment.amount>0:
-            db.session.add(Payment(**source, debt_id=payment.debt_id, amount=-payment.amount,
+            db.session.add(Payment(**source, debt_id=payment.debt_id, amount=-payment.amount, currency=payment.currency or 'IQD',
                 method=payment.method, user_id=actor(), business_day=business_date()))
     if is_session:
         for debt in ManualDebt.query.filter_by(session_id=obj.id).all():
             debt.status = 'void'
     if restock:
-        lines = [i for o in obj.orders for i in o.items] if is_session else obj.items
         for i in lines:
             stock_change(i.product, i.quantity, 'Explicit goods return', obj)
         obj.stock_restored = True
-        adjustment.cogs_reversal=sum((i.snapshot or {}).get('cost',0)*i.quantity for i in lines)
-    else:
-        adjustment.cogs_reversal=0
-    if not is_session and not obj.finalized_at:
-        # A pre-fulfillment refund reverses a collection, not a recognized sale.
-        adjustment.amount=0
-        adjustment.cogs_reversal=0
     obj.voided = True
-    audit('Bill refunded', obj, reason, amount=total)
+    audit('Bill refunded', obj, reason, amount=bill_total(obj), after={c: bill_total(obj, c) for c in CURRENCIES})
 
 
 def court_usage(start, end):
@@ -561,7 +710,12 @@ def court_usage(start, end):
 
 
 def reports(start, end):
-    """Business-date sales and actual-date collections are deliberately separate."""
+    """Business-date sales and actual-date collections are deliberately separate.
+
+    Every money figure is reported per currency under `money['IQD']` and
+    `money['USD']`; the two are never added together. Court time and bookings
+    are dinar only.
+    """
     sessions = POSSession.query.filter(POSSession.business_day.between(start,end), POSSession.finalized_at.isnot(None)).all()
     orders = Order.query.filter(Order.business_day.between(start,end), Order.finalized_at.isnot(None)).all()
     payments = Payment.query.filter(Payment.business_day.between(start,end)).all()
@@ -569,41 +723,56 @@ def reports(start, end):
     adjustments = Adjustment.query.filter(Adjustment.business_day.between(start,end)).all()
     bookings = Booking.query.filter(Booking.business_day.between(start,end)).all()
     debts = ManualDebt.query.filter(ManualDebt.date.between(start,end)).all()
-    lines = [i for s in sessions for o in s.orders for i in o.items] + [i for o in orders for i in o.items]
-    costs = sum((i.snapshot or {}).get('cost',0)*i.quantity for i in lines)
-    returned_costs=sum(a.cogs_reversal or 0 for a in adjustments)
-    net_costs=costs-returned_costs
-    by_type = {k:sum(money(s.total_amount) for s in sessions if s.session_type==k) for k in ['stadium','table','quick']}
-    sales = sum(by_type.values())+sum(money(o.total_price) for o in orders)
-    collected = sum(p.amount for p in payments)
-    expenditure = sum(e.amount for e in expenses)
-    operating_expenses = sum(e.amount for e in expenses if e.category != 'purchases')
-    refunds = sum(a.amount for a in adjustments)
-    product_summary={}
-    for item in lines:
+    open_debts = ManualDebt.query.filter_by(status='open').all()
+    stopped = POSSession.query.filter_by(status='stopped').all()
+    stopped_quotes = [session_quote(x) for x in stopped]
+    lines = [i for x in sessions for o in x.orders for i in o.items] + [i for o in orders for i in o.items]
+    amounts = [(i, line_amounts(i)) for i in lines]
+    cur = lambda obj: getattr(obj, 'currency', None) or 'IQD'
+    result = {}
+    for c in CURRENCIES:
+        mine = [a for i, a in amounts if a['currency'] == c]
+        pays = [p for p in payments if cur(p) == c]
+        spent = [e for e in expenses if cur(e) == c]
+        adjust = [a for a in adjustments if cur(a) == c]
+        by_type = {k: sum(bill_total(x, c) for x in sessions if x.session_type == k) for k in ['stadium','person','quick','table']}
+        website = sum(bill_total(o, c) for o in orders)
+        sales = sum(by_type.values()) + website
+        refunds = sum(a.amount for a in adjust)
+        costs = sum(a['cost'] for a in mine)
+        returned = sum(a.cogs_reversal or 0 for a in adjust)
+        cogs = costs - returned
+        collected = sum(p.amount for p in pays)
+        expenditure = sum(e.amount for e in spent)
+        operating = sum(e.amount for e in spent if e.category != 'purchases')
+        bill_discounts = sum(money((x.manual_discount if c == 'IQD' else x.manual_discount_usd) or 0) for x in sessions)
+        result[c] = dict(sales=sales, refunds=refunds, net_sales=sales-refunds, by_type=by_type, website_sales=website,
+            court_time_sales=sum(x.play_time_price-x.auto_discount for x in sessions if x.session_type=='stadium') if c == 'IQD' else 0,
+            collected=collected, cash=sum(p.amount for p in pays if p.method=='cash'),
+            card=sum(p.amount for p in pays if p.method=='card'), expenses_total=expenditure,
+            cash_movement=collected-expenditure, cogs=cogs, original_cogs=costs, returned_costs=returned,
+            gross_margin=sales-refunds-cogs, operating_result=sales-refunds-cogs-operating,
+            debt_created=sum(d.amount for d in debts if d.status!='void' and cur(d) == c),
+            debt_collections=sum(p.amount for p in pays if p.debt_id),
+            outstanding=sum(d.remaining for d in open_debts if cur(d) == c),
+            discounts=bill_discounts + sum(a['discount'] for a in mine) + (sum(money(x.auto_discount) for x in sessions) if c == 'IQD' else 0),
+            line_discounts=sum(a['discount'] for a in mine), free_units=sum(a['free'] for a in mine),
+            free_cost=sum(a['free_cost'] for a in mine), free_value=sum(a['free_value'] for a in mine),
+            unpaid=sum(q['totals'][c] for q in stopped_quotes),
+            quoted=sum(money(b.final_price) for b in bookings if b.status!='cancelled') if c == 'IQD' else 0,
+            confirmed_value=sum(money(b.final_price) for b in bookings if b.status in ['confirmed','completed']) if c == 'IQD' else 0)
+    product_summary = {}
+    for item, line in amounts:
         # Historical prices and names come from the sale, never the live catalog.
-        snap=item.snapshot or {}
-        key=(item.product_id,snap.get('name_en'),item.price,snap.get('cost',0))
-        entry=product_summary.setdefault(key,dict(snapshot=snap,quantity=0,sales=0,cost=0))
-        entry['quantity']+=item.quantity
-        entry['sales']+=item.quantity*item.price
-        entry['cost']+=item.quantity*snap.get('cost',0)
+        snap = item.snapshot or {}
+        key = (item.product_id, snap.get('name_en'), item.price, snap.get('cost',0), line['currency'])
+        entry = product_summary.setdefault(key, dict(snapshot=snap, currency=line['currency'], quantity=0, free=0, sales=0, cost=0))
+        entry['quantity'] += item.quantity
+        entry['free'] += line['free']
+        entry['sales'] += line['net']
+        entry['cost'] += line['cost']
     return dict(sessions=sessions, orders=orders, payments=payments, expenses=expenses, adjustments=adjustments,
-        bookings=bookings, product_summary=list(product_summary.values()), sales=sales, refunds=refunds, net_sales=sales-refunds,
-        court_time_sales=sum(s.play_time_price-s.auto_discount for s in sessions if s.session_type=='stadium'),
-        collected=collected, cash=sum(p.amount for p in payments if p.method=='cash'),
-        card=sum(p.amount for p in payments if p.method=='card'), expenses_total=expenditure,
-        cash_movement=collected-expenditure, cogs=net_costs, original_cogs=costs, returned_costs=returned_costs,
-        gross_margin=sales-refunds-net_costs,
-        operating_result=sales-refunds-net_costs-operating_expenses, by_type=by_type,
-        website_sales=sum(money(o.total_price) for o in orders),
-        debt_created=sum(d.amount for d in debts if d.status!='void'),
-        debt_collections=sum(p.amount for p in payments if p.debt_id),
-        outstanding=sum(d.remaining for d in ManualDebt.query.filter_by(status='open')),
-        discounts=sum(money(s.auto_discount)+money(s.manual_discount) for s in sessions),
+        bookings=bookings, product_summary=list(product_summary.values()), money=result,
         product_quantity=sum(i.quantity for i in lines),
-        quoted=sum(money(b.final_price) for b in bookings if b.status!='cancelled'),
-        confirmed_value=sum(money(b.final_price) for b in bookings if b.status in ['confirmed','completed']),
         booked_hours=sum(b.duration_hours for b in bookings if b.status in ['confirmed','completed']),
-        active=POSSession.query.filter_by(status='active').count(),
-        unpaid=sum(session_quote(s)['total'] for s in POSSession.query.filter_by(status='stopped')))
+        active=POSSession.query.filter_by(status='active').count(), stopped_count=len(stopped))

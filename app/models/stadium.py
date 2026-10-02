@@ -17,6 +17,11 @@ class Stadium(db.Model):
     image_url = db.Column(db.String(200))
     show_in_pos = db.Column(db.Boolean, default=True)
     show_in_booking = db.Column(db.Boolean, default=True)
+    # Amenity badges on the public court card; each shows only when ticked.
+    has_led = db.Column(db.Boolean, default=False, server_default='0', nullable=False)
+    has_ac = db.Column(db.Boolean, default=False, server_default='0', nullable=False)
+    has_turf = db.Column(db.Boolean, default=False, server_default='0', nullable=False)
+    has_panoramic = db.Column(db.Boolean, default=False, server_default='0', nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships

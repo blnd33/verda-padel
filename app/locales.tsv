@@ -48,7 +48,6 @@ Staff sign in|دخول الموظفين
 Crafted by|من تصميم
 Skip to content|انتقل إلى المحتوى
 Menu|القائمة
-DEMO · Fictional courts, products and prices. Not a live venue.|عرض تجريبي · الملاعب والمنتجات والأسعار افتراضية وليست بيانات منشأة فعلية.
 MAKE YOUR NEXT MOVE|خطوتك القادمة
 Your court. Your time.|ملعبك، وقتك.
 Choose a court and send a booking request. Our team will confirm your game.|اختر ملعباً وأرسل طلب الحجز. سيؤكد فريقنا موعدك.
@@ -394,7 +393,6 @@ Instagram link|رابط إنستغرام
 Facebook link|رابط فيسبوك
 Social link|رابط اجتماعي
 Venue details and commercial policies are confirmed|تفاصيل المكان والسياسات التجارية مؤكدة
-Show demonstration banner|إظهار شريط العرض التجريبي
 Hours & pricing|الأوقات والأسعار
 Opening hour (0–23)|ساعة الفتح (0–23)
 Closing hour (0–23)|ساعة الإغلاق (0–23)
@@ -656,7 +654,6 @@ Unfulfilled order cancellation|إلغاء طلب غير منفذ
 POS item|منتج كاشير
 POS quantity correction|تصحيح كمية الكاشير
 Explicit goods return|إرجاع بضائع موثق
-Quick sale|بيع سريع
 Court utilization|استخدام الملاعب
 Occupied hours|ساعات الاستخدام
 Available hours estimate|الساعات المتاحة التقديرية
@@ -680,3 +677,192 @@ Declined by staff|مرفوض من قبل الموظفين
 Reason for declining this booking:|سبب رفض هذا الحجز:
 now|الآن
 Charged per hour actually played. A session crossing a window is split automatically.|تُحتسب حسب الساعات الفعلية للعب. الجلسة التي تمتد بين فترتين تُقسّم تلقائياً.
+Close menu|إغلاق القائمة
+THE COURTS|الملاعب
+Pick your court.|اختر ملعبك.
+Available now|متاح الآن
+In play now|قيد اللعب الآن
+Opens at|يفتح الساعة
+Book now|احجز الآن
+Book|احجز
+off|خصم
+LED|إضاءة LED
+A/C|تكييف
+Turf|عشب احترافي
+Panoramic|زجاج بانورامي
+Amenities|المرافق
+LED lighting|إضاءة LED
+Air conditioned|مكيّف
+Pro turf|عشب احترافي
+Panoramic glass|زجاج بانورامي
+Open a tab for each person, run the courts, or make a quick sale.|افتح حساباً لكل شخص، أدر الملاعب، أو نفّذ بيعاً سريعاً.
+Open tabs|الحسابات المفتوحة
+People with a running bill|أشخاص لديهم فاتورة مفتوحة
+Court sessions|جلسات الملاعب
+Awaiting settlement|بانتظار التسوية
+Tabs closed today|حسابات أُغلقت اليوم
+People|الأشخاص
+Find a person|ابحث عن شخص
+Open a new tab|فتح حساب جديد
+Everything they order goes on their name until they leave.|كل ما يطلبه يُسجَّل باسمه حتى يغادر.
+e.g. Blnd|مثال: بلند
+Open tab|فتح الحساب
+Opened|فُتح
+Items|المنتجات
+Running total|المجموع الحالي
+Closed today|أُغلقت اليوم
+Personal tab|حساب شخصي
+person|حساب شخصي
+Tab for|حساب
+Edit item|تعديل المنتج
+Free units|وحدات مجانية
+Give free|اجعلها مجانية
+Item discount|خصم المنتج
+Apply|تطبيق
+Free units cost the customer nothing; stock still goes down and the cost is recorded.|الوحدات المجانية لا يدفعها الزبون؛ ينقص المخزون ويُسجَّل سعر التكلفة.
+Nothing on this bill yet. Tap a product to add it.|لا شيء في هذه الفاتورة بعد. اضغط على منتج لإضافته.
+Free|مجاني
+Free items|منتجات مجانية
+Item discounts|خصومات المنتجات
+Invoice discount|خصم الفاتورة
+Discount on whole invoice|خصم على الفاتورة كاملة
+Close tab and print invoice|إغلاق الحساب وطباعة الفاتورة
+Invoice|فاتورة
+Tab opened|فُتح الحساب
+Tab closed|أُغلق الحساب
+Item discounts (included above)|خصومات المنتجات (ضمن ما سبق)
+Free items at cost|المنتجات المجانية بسعر التكلفة
+Personal tabs|الحسابات الشخصية
+Table bills (before tabs)|فواتير الطاولات (قبل الحسابات)
+Finalized item values after free units and item discounts, before invoice discounts and later refunds. Costs use sale snapshots and include free units.|قيم المنتجات النهائية بعد الوحدات المجانية وخصومات المنتجات، وقبل خصم الفاتورة والاسترجاعات. التكاليف من لقطة البيع وتشمل الوحدات المجانية.
+Choose a court or open a tab for a person.|اختر ملعباً أو افتح حساباً لشخص.
+Enter the name of the person this tab belongs to.|أدخل اسم صاحب هذا الحساب.
+Add|أضف
+No products are enabled for the cashier.|لا توجد منتجات مفعّلة للكاشير.
+Tap a product to add it to the basket.|اضغط على منتج لإضافته إلى السلة.
+Remove one|إزالة واحدة
+Add one|إضافة واحدة
+FIND US|موقعنا
+Come play with us.|تعال والعب معنا.
+Map showing the Verda Padel location|خريطة تُظهر موقع فيردا بادل
+Tap for directions|اضغط للاتجاهات
+Open in Google Maps|افتح في خرائط Google
+Map location (latitude, longitude)|موقع الخريطة (خط العرض، خط الطول)
+In Google Maps, right-click your venue and click the numbers at the top of the menu to copy them, then paste here. Shows the map on the website with a directions button.|في خرائط Google، انقر بزر الفأرة الأيمن على موقع النادي ثم اضغط على الأرقام في أعلى القائمة لنسخها، والصقها هنا. تظهر الخريطة على الموقع مع زر الاتجاهات.
+Enter the map location as latitude, longitude — for example 36.8669, 42.9503.|أدخل موقع الخريطة بصيغة خط العرض، خط الطول — مثال: 36.8669, 42.9503.
+Opening time|وقت الافتتاح
+Closing time|وقت الإغلاق
+Evening rate starts|بداية سعر المساء
+Evening rate ends|نهاية سعر المساء
+Discount starts|بداية الخصم
+Discount ends|نهاية الخصم
+Start time|وقت البدء
+
+Currency|العملة
+Dinar (IQD)|الدينار (IQD)
+Dollar ($)|الدولار ($)
+Choose dinar or dollar.|اختر الدينار أو الدولار.
+Enter a valid amount.|أدخل مبلغاً صحيحاً.
+Enter a whole dinar amount.|أدخل مبلغاً بالدينار دون كسور.
+Revenue today|إيراد اليوم
+Courts in use right now|ملاعب مشغولة الآن
+Products at or below threshold|منتجات عند الحد الأدنى أو أقل
+Units sold today|وحدات بيعت اليوم
+Open full report|افتح التقرير الكامل
+Cash|نقداً
+Card|بطاقة
+Sales by bill type|المبيعات حسب نوع الفاتورة
+Dinar and dollar are kept apart and never added together or converted.|الدينار والدولار منفصلان ولا يُجمعان أو يُحوَّلان أبداً.
+Each product is sold and costed in its own currency, so every profit figure is per currency. Courts and bookings are always in dinar.|يُباع كل منتج وتُحسب تكلفته بعملته، لذا كل رقم ربح هو لكل عملة على حدة. الملاعب والحجوزات دائماً بالدينار.
+Percentage (all currencies)|نسبة مئوية (كل العملات)
+Fixed amount|مبلغ ثابت
+Take a fixed amount off|اخصم مبلغاً ثابتاً من
+Each total is paid in its own currency. Dollars and dinar are never converted.|يُدفع كل مجموع بعملته. لا يُحوَّل الدولار والدينار أبداً.
+Dollar-priced items are paid in dollars and dinar-priced items in dinar.|تُدفع المنتجات المسعّرة بالدولار بالدولار، والمسعّرة بالدينار بالدينار.Only court|الملعب الوحيد
+Booking page photo|صورة صفحة الحجز
+Selected court’s photo (default)|صورة الملعب المختار (افتراضي)
+
+A guest|زائر
+{actor} signed in|{actor} سجّل الدخول
+{actor} updated the website settings|{actor} حدّث إعدادات الموقع
+{actor} opened a tab for {name}|{actor} فتح حساباً لـ {name}
+{actor} started a court session on {court}|{actor} بدأ جلسة على {court}
+{actor} started a quick sale|{actor} بدأ بيعاً سريعاً
+{actor} added {quantity} × {product} to {record}|{actor} أضاف {quantity} × {product} إلى {record}
+{actor} added an item to {record}|{actor} أضاف منتجاً إلى {record}
+{actor} changed {product} on {record} from {old} to {new}|{actor} غيّر كمية {product} في {record} من {old} إلى {new}
+{actor} changed an item quantity on {record}|{actor} غيّر كمية منتج في {record}
+{actor} gave {quantity} × {product} free on {record}|{actor} قدّم {quantity} × {product} مجاناً في {record}
+{actor} removed the free units of {product} on {record}|{actor} ألغى الوحدات المجانية من {product} في {record}
+{actor} gave {product} a discount of {discount} on {record}|{actor} منح {product} خصماً بقيمة {discount} في {record}
+{actor} removed the discount on {product} on {record}|{actor} ألغى الخصم على {product} في {record}
+{actor} applied a discount of {discount} to {record}|{actor} طبّق خصماً بقيمة {discount} على {record}
+{actor} applied a discount to {record}|{actor} طبّق خصماً على {record}
+{actor} stopped the timer on {record}|{actor} أوقف المؤقت في {record}
+{actor} closed {record} and put {amounts} on debt|{actor} أغلق {record} وسجّل {amounts} ديناً
+{actor} closed {record}: {amounts} paid by {method}|{actor} أغلق {record}: دُفع {amounts} {method}
+{actor} updated the customer details on {record}|{actor} حدّث بيانات الزبون في {record}
+{actor} moved an order on {record} to “{status}”|{actor} نقل طلباً في {record} إلى «{status}»
+{actor} moved an order on {record} to the next stage|{actor} نقل طلباً في {record} إلى المرحلة التالية
+{actor} voided {record}|{actor} ألغى {record}
+{actor} refunded {record} ({amounts})|{actor} استرجع {record} ({amounts})
+{actor} requested {record}|{actor} طلب {record}
+{actor} edited {record}|{actor} عدّل {record}
+{actor} approved {record}|{actor} وافق على {record}
+{actor} declined {record}|{actor} رفض {record}
+{actor} cancelled {record}|{actor} ألغى {record}
+{actor} asked to cancel {record}|{actor} طلب إلغاء {record}
+{actor} restored {record}|{actor} أعاد {record}
+{actor} marked {record} as completed|{actor} أكمل {record}
+{actor} archived {record}|{actor} أرشف {record}
+{actor} changed {record}|{actor} غيّر {record}
+{actor} placed {record}|{actor} أرسل {record}
+{actor} moved {record} from “{old}” to “{new}”|{actor} نقل {record} من «{old}» إلى «{new}»
+{actor} recorded a {method} payment of {amount} on {record}|{actor} سجّل دفعة {method} بقيمة {amount} على {record}
+{actor} recorded {record}|{actor} سجّل {record}
+{actor} collected {amount} ({method}) from {record}|{actor} حصّل {amount} ({method}) من {record}
+{actor} added {quantity} units to the stock of {record}|{actor} أضاف {quantity} وحدة إلى مخزون {record}
+{actor} removed {quantity} units from the stock of {record}|{actor} أزال {quantity} وحدة من مخزون {record}
+{actor} blocked {record} for maintenance|{actor} أغلق {record} للصيانة
+{actor} removed the maintenance block on {record}|{actor} ألغى إغلاق الصيانة على {record}
+{actor} made a new barcode for {record}|{actor} أنشأ باركود جديداً لـ {record}
+{actor} added {thing} {record}|{actor} أضاف {thing} {record}
+{actor} updated {thing} {record}|{actor} حدّث {thing} {record}
+{actor} archived {thing} {record}|{actor} أرشف {thing} {record}
+{actor}: {action} — {record}|{actor}: {action} — {record}
+the product|المنتج
+the category|الفئة
+the court|الملعب
+an expense|مصروفاً
+the staff member|الموظف
+the table|الطاولة
+a record|سجلاً
+a deleted record|سجلاً محذوفاً
+{name}'s tab|حساب {name}
+the {court} session|جلسة {court}
+quick sale VP-{ref}|بيع سريع VP-{ref}
+the booking for {name} on {court}, {when}|حجز {name} على {court}، {when}
+website order VP-{ref} from {name}|طلب الموقع VP-{ref} من {name}
+a debt of {amount} for {name}|ديناً بقيمة {amount} على {name}
+a court|ملعباً
+an item|منتجاً
+Yes|نعم
+No|لاIt's {name}'s time|حان وقت {name}
+{court} · {starts} – {ends} ({hours} h)|{court} · {starts} – {ends} ({hours} س)
+{name}'s booked time on {court} has ended. The timer stopped.|انتهى وقت حجز {name} على {court}. توقف المؤقت.
+Accept & start|قبول وبدء
+Could not start. Check the cashier page.|تعذّر البدء. راجع صفحة الكاشير.
+This booking can no longer be started.|لم يعد بالإمكان بدء هذا الحجز.
+Booked until|محجوز حتى
+stops automatically|يتوقف تلقائياً
+Bookings starting now|حجوزات تبدأ الآن
+h|س
+{actor} started {name}'s booked session on {court}|{actor} بدأ جلسة {name} المحجوزة على {court}
+{record}: the booked time ended and the timer stopped automatically|{record}: انتهى الوقت المحجوز وتوقف المؤقت تلقائياً
+{actor} dismissed the start reminder for {record}|{actor} تجاهل تذكير بدء {record}
+
+When|متى
+Any day|أي يوم
+Tomorrow|غداً
+Upcoming|القادمةcashier|كاشير
+Enter a password for the new staff member.|أدخل كلمة مرور للموظف الجديد.

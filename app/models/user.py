@@ -16,11 +16,16 @@ class User(db.Model, UserMixin):
     # ---- Roles ----
     ROLE_SUPER_ADMIN = "super_admin"
     ROLE_ADMIN = "admin"
+    ROLE_CASHIER = "cashier"
+    ROLES = (ROLE_CASHIER, ROLE_ADMIN, ROLE_SUPER_ADMIN)
+    # A new cashier starts with the till and its receipts; more can be ticked.
+    CASHIER_PERMISSIONS = ['pos', 'receipts']
 
     id = db.Column(db.Integer, primary_key=True)
 
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    # Optional: staff sign in with their username.
+    email = db.Column(db.String(120), unique=True, nullable=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
 
     # ✅ Main role (source of truth)

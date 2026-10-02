@@ -53,6 +53,7 @@ class Payment(db.Model):
     order = db.relationship('Order', backref='payments')
     debt = db.relationship('ManualDebt', backref='collections')
     amount = db.Column(db.BigInteger, nullable=False)
+    currency = db.Column(db.String(3), default='IQD', server_default='IQD', nullable=False)
     method = db.Column(db.String(20), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     business_day = db.Column(db.Date, nullable=False, index=True)
@@ -63,9 +64,14 @@ class Payment(db.Model):
 class Adjustment(db.Model):
     __tablename__ = 'adjustment'
     id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.Integer, db.ForeignKey('pos_session.id'), unique=True)
-    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), unique=True)
+    # One adjustment per bill per currency: a bill holding dollar and dinar
+    # lines is reversed in each currency separately.
+    session_id = db.Column(db.Integer, db.ForeignKey('pos_session.id'))
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'))
     amount = db.Column(db.BigInteger, nullable=False)
+    currency = db.Column(db.String(3), default='IQD', server_default='IQD', nullable=False)
+    __table_args__ = (db.UniqueConstraint('session_id', 'currency', name='uq_adjustment_session_currency'),
+                      db.UniqueConstraint('order_id', 'currency', name='uq_adjustment_order_currency'))
     cogs_reversal = db.Column(db.BigInteger, nullable=False, default=0, server_default='0')
     reason = db.Column(db.String(500), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))

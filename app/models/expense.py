@@ -17,7 +17,8 @@ class Expense(db.Model):
     # Basic Info
     date = db.Column(db.Date, nullable=False, default=datetime.utcnow().date, index=True)
     category = db.Column(db.String(50), nullable=False, index=True)  # رواتب، فواتير، صيانة، إلخ
-    amount = db.Column(db.Integer, nullable=False)  # المبلغ بالدينار العراقي
+    amount = db.Column(db.Integer, nullable=False)  # minor units of `currency`
+    currency = db.Column(db.String(3), default='IQD', server_default='IQD', nullable=False)
 
     # Description
     description = db.Column(db.String(500))  # الوصف

@@ -1,4 +1,5 @@
 import csv
+import re
 import io
 import secrets
 from pathlib import Path
@@ -6,23 +7,24 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from urllib.parse import urlsplit
 from PIL import Image, UnidentifiedImageError
-from flask import Blueprint, request, render_template, redirect, abort, current_app, send_file, flash
+from flask import Blueprint, request, render_template, redirect, abort, current_app, send_file, flash, session
 from flask_login import current_user
 from app import db
 from app.models import *
 from app.services import core
+from app import money as currency
 from app.security import require, permitted, PERMISSIONS, landing
 
 admin=Blueprint('admin',__name__,url_prefix='/admin')
 
 # Shared form descriptions keep validation and management screens consistent.
 MODULES={
- 'courts':(Stadium,'courts','Courts',[('name','Name','text',True),('description','Description','textarea',False),('location','Location','text',False),('price_per_hour','Hourly rate','number',False),('is_active','Active','checkbox',False),('show_in_booking','Public booking','checkbox',False),('show_in_pos','Cashier visibility','checkbox',False),('image_url','Image','image',False)]),
+ 'courts':(Stadium,'courts','Courts',[('name','Name','text',True),('description','Description','textarea',False),('location','Location','text',False),('price_per_hour','Hourly rate','number',False),('is_active','Active','checkbox',False),('show_in_booking','Public booking','checkbox',False),('show_in_pos','Cashier visibility','checkbox',False),('has_led','LED lighting','checkbox',False),('has_ac','Air conditioned','checkbox',False),('has_turf','Pro turf','checkbox',False),('has_panoramic','Panoramic glass','checkbox',False),('image_url','Image','image',False)]),
  'tables':(Table,'tables','Tables',[('name','Name','text',True),('capacity','Capacity','number',True),('is_active','Active','checkbox',False)]),
- 'products':(Product,'products','Products',[(f'name_{lang}',f'Name ({lang})','text',lang=='en') for lang in ['en','ar']]+[(f'description_{lang}',f'Description ({lang})','textarea',False) for lang in ['en','ar']]+[('category_id','Category','category',False),('cost_price','Cost price','number',True),('price','Selling price','number',True),('stock','Opening stock','number',True),('track_stock','Track stock','checkbox',False),('low_stock_threshold','Low stock threshold','number',True),('is_active','Active','checkbox',False),('show_in_website','Website visibility','checkbox',False),('show_in_pos','Cashier visibility','checkbox',False),('featured','Featured product','checkbox',False),('barcode','Barcode','text',False),('image','Image','image',False)]),
+ 'products':(Product,'products','Products',[(f'name_{lang}',f'Name ({lang})','text',lang=='en') for lang in ['en','ar']]+[(f'description_{lang}',f'Description ({lang})','textarea',False) for lang in ['en','ar']]+[('category_id','Category','category',False),('currency','Currency','currency',True),('cost_price','Cost price','money',True),('price','Selling price','money',True),('stock','Opening stock','number',True),('track_stock','Track stock','checkbox',False),('low_stock_threshold','Low stock threshold','number',True),('is_active','Active','checkbox',False),('show_in_website','Website visibility','checkbox',False),('show_in_pos','Cashier visibility','checkbox',False),('featured','Featured product','checkbox',False),('barcode','Barcode','text',False),('image','Image','image',False)]),
  'categories':(Category,'products','Categories',[(f'name_{lang}',f'Name ({lang})','text',lang=='en') for lang in ['en','ar']]+[(f'description_{lang}',f'Description ({lang})','textarea',False) for lang in ['en','ar']]+[('is_active','Active','checkbox',False),('show_on_website','Website visibility','checkbox',False),('show_on_pos','Cashier visibility','checkbox',False)]),
- 'expenses':(Expense,'expenses','Expenses',[('date','Date','date',True),('category','Category','expense_category',True),('amount','Amount','number',True),('description','Description','textarea',False),('payment_method','Method','method',True),('reference_number','Reference','text',False)]),
- 'staff':(User,'staff','Staff & permissions',[('username','Username','text',True),('email','Email','email',True),('password','Password','password',False),('role','Role','role',True),('is_active','Active','checkbox',False)])
+ 'expenses':(Expense,'expenses','Expenses',[('date','Date','date',True),('category','Category','expense_category',True),('currency','Currency','currency',True),('amount','Amount','money',True),('description','Description','textarea',False),('payment_method','Method','method',True),('reference_number','Reference','text',False)]),
+ 'staff':(User,'staff','Staff & permissions',[('username','Username','text',True),('password','Password','password',False),('role','Role','role',True),('is_active','Active','checkbox',False)])
 }
 
 def authorize(permission):
@@ -59,7 +61,7 @@ def safe_image(file):
         raise core.RuleError('Choose a valid image file.')
 
 VIDEO_LIMIT=40*1024*1024
-MEDIA_PANELS={'hero':'Homepage hero','login':'Staff sign-in panel'}
+MEDIA_PANELS={'hero':'Homepage hero','login':'Staff sign-in panel','booking':'Booking page photo'}
 
 def safe_video(file):
     if not file or not file.filename:
@@ -143,6 +145,11 @@ def manage(module,record_id=None):
                 continue
             if kind=='checkbox':
                 data[field]=value=='on'
+            elif kind=='currency':
+                data[field]=currency.check(value or 'IQD')
+            elif kind=='money':
+                # Parsed in the record's currency: dollars accept cents, dinar whole numbers.
+                data[field]=currency.parse(value,request.form.get('currency','IQD'),1 if field=='amount' else 0)
             elif kind=='number':
                 data[field]=None if not value and not required else core.integer(value,1 if field in ['amount','capacity'] else 0)
             elif kind=='date':
@@ -159,7 +166,7 @@ def manage(module,record_id=None):
                     raise core.RuleError('Choose a valid payment method.')
                 data[field]=value
             elif kind=='role':
-                if value not in ['admin','super_admin']:
+                if value not in User.ROLES:
                     raise core.RuleError('Choose a valid role.')
                 data[field]=value
             elif kind=='expense_category':
@@ -174,12 +181,11 @@ def manage(module,record_id=None):
             if record:
                 guard_staff(record,data['is_active'],data['role'])
             data['username']=data['username'].lower()
-            data['email']=data['email'].lower()
-            if '@' not in data['email']:
-                raise core.RuleError('Enter a valid email address.')
             password=data.pop('password')
-            if (not record or password) and len(password)<12:
-                raise core.RuleError('Use a password with at least 12 characters.')
+            # Any password the owner chooses; a new account just cannot be left without one.
+            # When editing, a blank password keeps the current one.
+            if not record and not password:
+                raise core.RuleError('Enter a password for the new staff member.')
         if module=='products':
             barcode=data.get('barcode','')
             if barcode and (len(barcode)>48 or not barcode.isascii() or not barcode.isprintable()):
@@ -193,6 +199,8 @@ def manage(module,record_id=None):
             if password:
                 record.set_password(password)
             record.permissions=[p for p in request.form.getlist('permissions') if p in PERMISSIONS]
+            if record.role=='cashier' and not record.permissions:
+                record.permissions=list(User.CASHIER_PERMISSIONS)
             record.sync_role_flags()
             record.session_version=(record.session_version or 0)+1
         if module=='expenses':
@@ -245,10 +253,22 @@ def bookings():
             query=query.filter_by(business_day=date.fromisoformat(request.args['date']))
         except ValueError:
             raise core.RuleError('Choose a valid date.')
+    today=core.business_date()
+    when=request.args.get('when','')
+    if when=='today':
+        query=query.filter(Booking.business_day==today)
+    elif when=='tomorrow':
+        query=query.filter(Booking.business_day==today+timedelta(days=1))
+    elif when=='upcoming':
+        query=query.filter(Booking.ends_at>core.now())
     q=request.args.get('q','').strip()
     if q:
         query=query.filter(db.or_(Booking.customer_name.ilike('%'+q+'%'),Booking.customer_phone.ilike('%'+q+'%'),Booking.reference.ilike('%'+q+'%')))
-    return render_template('admin/bookings.html',title='Bookings',rows=query.order_by(Booking.starts_at.desc()).paginate(page=request.args.get('page',1,type=int),per_page=20),courts=Stadium.query.all())
+    # A day or the upcoming list reads like a schedule, earliest first; everything else newest first.
+    schedule=when in ['today','tomorrow','upcoming'] or bool(request.args.get('date'))
+    order=Booking.starts_at.asc() if schedule else Booking.starts_at.desc()
+    return render_template('admin/bookings.html',title='Bookings',rows=query.order_by(order).paginate(page=request.args.get('page',1,type=int),per_page=20),courts=Stadium.query.all(),
+        today_count=Booking.query.filter(Booking.business_day==today,Booking.status.in_(['pending','confirmed','pending_cancel','completed'])).count())
 
 @admin.route('/bookings/new',methods=['GET','POST'])
 @require('bookings')
@@ -300,11 +320,12 @@ def order_detail(record_id):
         elif action=='payment':
             authorize('pos')
             method=request.form.get('method')
-            amount=core.integer(request.form.get('amount'),1)
-            if order.status=='cancelled' or order.voided or method not in ['cash','card'] or amount>core.balance(order):
+            code=currency.check(request.form.get('currency','IQD'))
+            amount=currency.parse(request.form.get('amount'),code,1)
+            if order.status=='cancelled' or order.voided or method not in ['cash','card'] or amount>core.balance(order,code):
                 raise core.RuleError('The payment exceeds the remaining balance or is invalid.')
-            db.session.add(Payment(order_id=order.id,amount=amount,method=method,user_id=core.actor(),business_day=core.business_date()))
-            core.audit('Order payment',order,amount=amount,method=method)
+            db.session.add(Payment(order_id=order.id,amount=amount,currency=code,method=method,user_id=core.actor(),business_day=core.business_date()))
+            core.audit('Order payment',order,amount=amount,method=method,after={'currency':code})
         else:
             target={'confirm':'confirmed','prepare':'processing','deliver':'delivered','collect':'collected'}.get(action)
             transitions={'pending':['confirmed'],'confirmed':['processing'],'processing':['delivered','collected']}
@@ -365,8 +386,9 @@ def debts():
             d=db.get_or_404(ManualDebt,core.integer(request.form.get('id'),1))
             core.collect_debt(d,request.form.get('amount'),request.form.get('method'))
         else:
+            code=currency.check(request.form.get('currency','IQD'))
             d=ManualDebt(name=core.text_value(request.form.get('name'),True,120),phone=core.text_value(request.form.get('phone'),limit=30),
-                amount=core.integer(request.form.get('amount'),1),paid_amount=0,note=core.text_value(request.form.get('note')),
+                amount=currency.parse(request.form.get('amount'),code,1),currency=code,paid_amount=0,note=core.text_value(request.form.get('note')),
                 date=core.business_date(),created_by=core.actor())
             db.session.add(d)
             db.session.flush()
@@ -387,7 +409,9 @@ def debts():
         query=query.filter(ManualDebt.date.between(a,b))
     filtered=query.all()
     return render_template('admin/debts.html',title='Debts',rows=query.order_by(ManualDebt.id.desc()).paginate(page=request.args.get('page',1,type=int),per_page=20),
-        total=sum(d.amount for d in filtered if d.status!='void'),collected=sum(d.paid_amount for d in filtered if d.status!='void'),outstanding=sum(d.remaining for d in filtered if d.status=='open'))
+        total={c:sum(d.amount for d in filtered if d.status!='void' and d.currency==c) for c in currency.CURRENCIES},
+        collected={c:sum(d.paid_amount for d in filtered if d.status!='void' and d.currency==c) for c in currency.CURRENCIES},
+        outstanding={c:sum(d.remaining for d in filtered if d.status=='open' and d.currency==c) for c in currency.CURRENCIES})
 
 @admin.get('/reports')
 @require('reports')
@@ -396,9 +420,10 @@ def reports():
     summary=core.reports(start,end)
     usage=core.court_usage(start,end)
     if request.args.get('export')=='csv':
-        data=[['Metric','IQD / count','Start business date','End business date']]
-        for k in ['sales','court_time_sales','refunds','net_sales','collected','cash','card','expenses_total','cogs','gross_margin','operating_result','cash_movement','debt_created','debt_collections','outstanding','quoted','confirmed_value']:
-            data.append([k,summary[k],start,end])
+        data=[['Metric','IQD','USD','Start business date','End business date']]
+        for k in ['sales','court_time_sales','discounts','line_discounts','free_units','free_cost','refunds','net_sales','collected','cash','card','expenses_total','cogs','gross_margin','operating_result','cash_movement','debt_created','debt_collections','outstanding','quoted','confirmed_value']:
+            iqd,usd=summary['money']['IQD'][k],summary['money']['USD'][k]
+            data.append([k,iqd,usd if k=='free_units' else currency.field_value(usd,'USD'),start,end])
         data.append([])
         data.append(['Court','Occupied hours','Available hours estimate','Utilization percent'])
         data.extend([[r['name'],round(r['occupied_hours'],2),round(r['available_hours'],2),round(r['utilization'],2)] for r in usage])
@@ -418,19 +443,19 @@ def archive():
     start,end=date_range()
     records=[]
     for s in POSSession.query.filter(POSSession.business_day.between(start,end),POSSession.status.in_(['paid','debt','stopped'])).all():
-        records.append(dict(kind=s.session_type,record=s,total=core.session_quote(s)['total'] if s.status=='stopped' else s.total_amount,method=s.payment_method or 'unpaid',url=f'/pos/receipt/{s.id}'))
+        records.append(dict(kind=s.session_type,record=s,totals=core.session_quote(s)['totals'] if s.status=='stopped' else {c:core.bill_total(s,c) for c in currency.CURRENCIES},method=s.payment_method or 'unpaid',url=f'/pos/receipt/{s.id}'))
     for o in Order.query.filter(Order.business_day.between(start,end)).all():
         methods={p.method for p in o.payments if p.amount>0}
-        records.append(dict(kind='website',record=o,total=o.total_price,method=' / '.join(sorted(methods)) if methods else 'unpaid',url=f'/admin/receipt/order/{o.id}'))
+        records.append(dict(kind='website',record=o,totals={c:core.bill_total(o,c) for c in currency.CURRENCIES},method=' / '.join(sorted(methods)) if methods else 'unpaid',url=f'/admin/receipt/order/{o.id}'))
     q=request.args.get('q','').lower()
     records=[r for r in records if (not q or q in (r['record'].customer_name or '').lower() or q in (r['record'].customer_phone or '').lower() or q in r['record'].reference.lower())
         and (not request.args.get('type') or r['kind']==request.args['type'])
         and (not request.args.get('method') or archive_method_matches(r,request.args['method']))]
     records.sort(key=lambda r:(r['record'].business_day,r['record'].created_at),reverse=True)
-    total=sum(r['total'] for r in records if not r['record'].voided and r['record'].status!='cancelled')
+    total={c:sum(r['totals'][c] for r in records if not r['record'].voided and r['record'].status!='cancelled') for c in currency.CURRENCIES}
     if request.args.get('export')=='csv':
         authorize('reports')
-        return csv_response([['Reference','Type','Business date','Customer','Method','Status','Total IQD','Voided']]+[[r['record'].reference,r['kind'],r['record'].business_day,r['record'].customer_name,r['method'],r['record'].status,r['total'],r['record'].voided] for r in records],'verda-receipts.csv')
+        return csv_response([['Reference','Type','Business date','Customer','Method','Status','Total IQD','Total USD','Voided']]+[[r['record'].reference,r['kind'],r['record'].business_day,r['record'].customer_name,r['method'],r['record'].status,r['totals']['IQD'],currency.field_value(r['totals']['USD'],'USD'),r['record'].voided] for r in records],'verda-receipts.csv')
     page=max(1,request.args.get('page',1,type=int))
     return render_template('admin/archive.html',title='Receipt archive',records=records[(page-1)*30:page*30],total=total,start=start,end=end,page=page,has_next=len(records)>page*30)
 
@@ -468,7 +493,10 @@ def notifications():
 @admin.get('/activity')
 @require('dashboard')
 def activity():
-    return render_template('admin/activity.html',title='Activity',rows=ActivityLog.query.order_by(ActivityLog.id.desc()).paginate(page=request.args.get('page',1,type=int),per_page=30))
+    from app.activity_text import describe_all
+    rows=ActivityLog.query.order_by(ActivityLog.id.desc()).paginate(page=request.args.get('page',1,type=int),per_page=30)
+    lang=session.get('lang',core.settings().default_language)
+    return render_template('admin/activity.html',title='Activity',rows=rows,stories=describe_all(rows.items,lang))
 
 @admin.route('/barcodes',methods=['GET','POST'])
 @require('products')
@@ -515,9 +543,16 @@ def settings_page():
                 if parsed.scheme not in ['http','https'] or not parsed.netloc:
                     raise core.RuleError('Use a complete http or https link.')
             setattr(s,key,value)
+        coordinates=core.text_value(request.form.get('map_coordinates'),limit=60)
+        if coordinates:
+            match=re.fullmatch(r'\s*\(?\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*\)?\s*',coordinates)
+            if not match or abs(float(match[1]))>90 or abs(float(match[2]))>180:
+                raise core.RuleError('Enter the map location as latitude, longitude — for example 36.8669, 42.9503.')
+            coordinates=f'{float(match[1]):.6f},{float(match[2]):.6f}'
+        s.map_coordinates=coordinates or None
         for key,lo,hi in [('opening_hour',0,23),('closing_hour',0,23),('price_per_hour',0,10000000),('evening_rate',0,10000000),('evening_start_hour',0,23),('evening_end_hour',0,23),('discount_percentage',0,100),('discount_start_hour',0,23),('discount_end_hour',0,23),('minimum_minutes',0,1440),('rounding_minutes',1,120),('max_booking_hours',1,12),('booking_days_ahead',1,365),('delivery_fee',0,10000000)]:
             setattr(s,key,core.integer(request.form.get(key),lo,hi))
-        for key in ['configured','delivery_enabled','auto_print','demo_mode']:
+        for key in ['configured','delivery_enabled','auto_print']:
             setattr(s,key,request.form.get(key)=='on')
         language=request.form.get('default_language')
         if language not in ['ar','en']:

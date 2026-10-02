@@ -19,7 +19,6 @@ NAVIGATION = [
     ('Catalog','inventory','Inventory','/admin/inventory'),
     ('Catalog','products','Barcode labels','/admin/barcodes'),
     ('Venue','courts','Courts','/admin/courts'),
-    ('Venue','tables','Tables','/admin/tables'),
     ('Money','debts','Debts','/admin/debts'),
     ('Money','expenses','Expenses','/admin/expenses'),
     ('Money','reports','Reports','/admin/reports'),

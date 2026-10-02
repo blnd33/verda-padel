@@ -49,6 +49,9 @@ class Booking(db.Model):
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     confirmed_at = db.Column(db.DateTime)
+    # Staff dismissed the "it's their time" reminder; it is not shown again.
+    start_prompt_declined_at = db.Column(db.DateTime)
+    start_prompt_declined_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     confirmed_by = db.Column(db.Integer, db.ForeignKey('user.id'))
 
     def __repr__(self):

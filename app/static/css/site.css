@@ -199,10 +199,10 @@ html[data-theme="dark"] .site-public .brand img{filter:brightness(0) invert(1)}
 .site-public .brand-word small{display:block;font-weight:300;font-size:8.5px;
   letter-spacing:.42em;color:var(--mut);margin-top:3px}
 .site-public .public-nav{display:flex;gap:26px;font-size:14.5px}
-.site-public .public-nav a{color:var(--mut);padding:8px 0;position:relative}
-.site-public .public-nav a:hover{color:var(--txt)}
-.site-public .public-nav a.active{color:var(--txt);font-weight:500}
-.site-public .public-nav a.active:after{content:'';position:absolute;bottom:0;left:0;right:0;
+.site-public .public-nav>a{color:var(--mut);padding:8px 0;position:relative}
+.site-public .public-nav>a:hover{color:var(--txt)}
+.site-public .public-nav>a.active{color:var(--txt);font-weight:500}
+.site-public .public-nav>a.active:after{content:'';position:absolute;bottom:0;left:0;right:0;
   height:2px;background:var(--lime);border-radius:2px}
 .site-public .header-actions{display:flex;align-items:center;gap:10px}
 .site-public .language-picker select{border:1px solid var(--line2);background:transparent;
@@ -233,6 +233,7 @@ html[data-theme="dark"] .site-public .theme-toggle .i-moon{display:none}
   html:not([data-theme="light"]) .site-public .theme-toggle .i-moon{display:none}
 }
 .site-public .menu-toggle{display:none}
+.site-public .nav-close,.site-public .nav-extras{display:none}
 
 /* ==========================================================================
    Hero
@@ -268,14 +269,18 @@ html[data-theme="dark"] .site-public .theme-toggle .i-moon{display:none}
 /* ==========================================================================
    Bento
    ========================================================================== */
-.v-bento{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.v-bento>*{min-width:0}
+/* Wrapping flex rather than a fixed grid: tiles in the last row grow to fill
+   it, so a venue with one court never leaves half a row empty. Court tiles
+   take the larger share of that space, since they carry the photo. */
+.v-bento{display:flex;flex-wrap:wrap;gap:12px}
+.v-bento>*{min-width:0;flex:1 1 calc(25% - 12px)}
+.v-bento>.v-court{flex-grow:2}
 .v-tile{background:var(--surf);border:1px solid var(--line);border-radius:var(--r-lg);
   padding:22px;position:relative;overflow:hidden;display:flex;flex-direction:column;
   justify-content:space-between;gap:16px;min-height:186px;
   transition:border-color .2s ease,transform .2s ease}
 .v-tile:hover{border-color:var(--line2);transform:translateY(-2px);color:inherit}
-.v-t2{grid-column:span 2}
+.v-bento>.v-t2{flex:2 1 calc(50% - 12px)}
 .site-public .v-tile h3{font-size:19px;font-weight:600;margin:0}
 .v-big{font-family:var(--disp);font-size:clamp(32px,4.6vw,52px);font-weight:800;
   letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums}
@@ -356,11 +361,135 @@ html[data-theme="dark"] .site-public .v-tile.is-c3 .v-court-art{color:var(--lime
   font-weight:700;margin:10px 0 0}
 .site-public .section-pad{padding:clamp(40px,6vw,74px) var(--gut)}
 
+/* ==========================================================================
+   Court cards — photo header carrying live status and the name, body with
+   description, amenity icons, rate range and the booking action.
+   The photo area is always dark (photo + scrim, or a floodlit gradient when
+   no photo is uploaded), so its text keeps fixed light colours in both themes.
+   ========================================================================== */
+.v-courts{display:flex;flex-wrap:wrap;justify-content:center;gap:18px}
+.v-courts>*{flex:1 1 300px;min-width:0;max-width:460px}
+.v-courts>.v-courts-empty{max-width:none}
+.v-ccard{display:flex;flex-direction:column;background:var(--surf);border:1px solid var(--line);
+  border-radius:calc(var(--r-lg) + 4px);padding:8px;box-shadow:var(--shadow);
+  transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
+.v-ccard:hover{transform:translateY(-3px);border-color:var(--line2);box-shadow:0 18px 50px #0625171a}
+.v-ccard-media{position:relative;aspect-ratio:16/11;border-radius:var(--r-lg);overflow:hidden;
+  background:radial-gradient(120% 90% at 20% 0%,#0E5A38 0%,#08301F 55%,#051A11 100%);color:#D8FF5E;
+  isolation:isolate}
+.v-ccard.is-c2 .v-ccard-media{background:radial-gradient(120% 90% at 80% 0%,#0B5C7D 0%,#08301F 60%,#051A11 100%);color:#8FDFFF}
+.v-ccard.is-c3 .v-ccard-media{background:radial-gradient(120% 90% at 50% 0%,#3D5A10 0%,#12301A 60%,#051A11 100%)}
+.v-ccard-media .v-media{transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+.v-ccard:hover .v-ccard-media .v-media{transform:scale(1.05)}
+.v-ccard-media .v-court-art{opacity:.34;color:inherit;inset:auto -8% -30% auto;width:78%}
+.v-ccard-shade{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,#040C08A6 0%,#040C0800 34%,#040C0800 46%,#040C08E6 100%)}
+.v-ccard-top{position:absolute;z-index:3;top:12px;inset-inline:12px;display:flex;flex-wrap:wrap;
+  justify-content:space-between;gap:8px;pointer-events:none}
+.v-ccard-badge{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 11px;
+  border-radius:99px;font-size:11.5px;font-weight:600;line-height:1;white-space:nowrap;
+  background:#040C0899;border:1px solid #FFFFFF2E;color:#F1F7F3;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.v-ccard-badge svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+.v-ccard-badge.is-deal{background:#D8FF5E;border-color:#D8FF5E;color:#0A1A07}
+.v-ccard-badge i{width:7px;height:7px;border-radius:50%;background:#94AC9F;flex:none}
+.v-ccard-badge.is-free i{background:#D8FF5E;animation:v-ccard-ping 2.2s infinite}
+.v-ccard-badge.is-busy i{background:#FF6B4A}
+.v-ccard-badge:not(.is-deal):only-child,.v-ccard-badge.is-deal+.v-ccard-badge{margin-inline-start:auto}
+@keyframes v-ccard-ping{0%{box-shadow:0 0 0 0 #D8FF5E99}70%{box-shadow:0 0 0 7px #D8FF5E00}100%{box-shadow:0 0 0 0 #D8FF5E00}}
+.v-ccard-title{position:absolute;z-index:2;inset-inline:16px;bottom:14px;color:#F1F7F3}
+.site-public .v-ccard-title .eyebrow{color:#D8FF5E;font-size:10.5px}
+.site-public .v-ccard-title h3{margin:4px 0 0;font-family:var(--disp);font-size:clamp(22px,2.4vw,27px);
+  font-weight:800;letter-spacing:-.03em;line-height:1.1;color:#F1F7F3;overflow-wrap:anywhere}
+.v-ccard-loc{display:block;margin-top:3px;font-size:12.5px;color:#C8DCD0}
+/* "Book now" pill over the photo: a hover affordance for mouse users. Touch
+   screens have no hover, so there it stays hidden and the body button is the
+   one action; keyboard users reach that same button, so this link is skipped. */
+.v-ccard-go{position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .25s ease;background:#040C0833}
+.v-ccard-go span{display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:0 22px;border-radius:99px;
+  background:#D8FF5E;color:#0A1A07;font-weight:700;font-size:15px;box-shadow:0 10px 30px #00000059;
+  transform:translateY(8px) scale(.96);transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+.v-ccard-go svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media (hover:hover) and (pointer:fine){
+  .v-ccard:hover .v-ccard-go{opacity:1}
+  .v-ccard:hover .v-ccard-go span{transform:none}
+}
+@media (hover:none),(pointer:coarse){.v-ccard-go{display:none}}
+.v-ccard-body{display:flex;flex-direction:column;gap:16px;flex:1;padding:16px 10px 8px}
+.v-ccard-desc{margin:0;font-size:14px;line-height:1.6;color:var(--mut)}
+.v-ccard-amen{list-style:none;margin:0;padding:0 0 16px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;border-bottom:1px solid var(--line)}
+.v-ccard-amen li{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;
+  font-size:11.5px;font-weight:600;color:var(--mut);line-height:1.25}
+.v-ccard-amen li>span{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+  background:var(--glow);color:var(--grn)}
+.v-ccard-amen svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.v-ccard-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px}
+.v-ccard-price{margin:0;font-family:var(--disp);font-size:clamp(22px,2.3vw,26px);font-weight:800;
+  letter-spacing:-.03em;color:var(--txt);font-variant-numeric:tabular-nums;line-height:1.1}
+.v-ccard-price small{font-family:var(--body);font-size:12px;font-weight:500;letter-spacing:0;color:var(--mut)}
+.v-ccard-price.is-tbc{font-size:15px;font-weight:600;color:var(--mut)}
+.site-public .v-ccard-book{width:100%;justify-content:center}
+@media (prefers-reduced-motion:reduce){
+  .v-ccard,.v-ccard-media .v-media,.v-ccard-go,.v-ccard-go span{transition:none}
+  .v-ccard-badge.is-free i{animation:none}
+  .v-ccard:hover,.v-ccard:hover .v-ccard-media .v-media{transform:none}
+}
+[dir=rtl] .site-public .v-ccard-title h3,[dir=rtl] .v-ccard-price{letter-spacing:0}
+
 /* brand band */
-.site-public .brand-band{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;
-  gap:10px 26px;padding:16px var(--gut);background:var(--surf2);border-block:1px solid var(--line);
-  font-size:14px;font-weight:500;color:var(--txt)}
-.site-public .brand-band span:nth-child(even){color:var(--grn);font-size:15px}
+/* ---------- Stadium ticker ----------
+   The loudest strip on the page: lime ground, heavy display type, phrases
+   alternating solid and outlined, a padel ball spinning between each one.
+   Seamless loop: the set is repeated 16 times so the track stays wider than
+   the viewport plus one set even on a 4K screen, and it shifts by exactly one
+   set (1/16) per cycle. Direction follows the language.
+   display:block on purpose — older rules make this a wrapping flex container,
+   which would let the track shrink or break onto a second line. */
+.site-public .brand-band{display:block;position:relative;overflow:hidden;
+  background:var(--lime);color:var(--lime-ink);padding:18px 0;border:0;
+  box-shadow:inset 0 1px 0 #0000001f,inset 0 -1px 0 #0000001f;
+  --band-size:clamp(20px,2.6vw,34px);--band-speed:20s}
+/* the text dissolves into the lime at both edges instead of being cut off */
+.site-public .brand-band::before,.site-public .brand-band::after{content:'';position:absolute;
+  top:0;bottom:0;width:clamp(28px,8vw,120px);z-index:1;pointer-events:none}
+.site-public .brand-band::before{left:0;background:linear-gradient(90deg,var(--lime),transparent)}
+.site-public .brand-band::after{right:0;background:linear-gradient(270deg,var(--lime),transparent)}
+.band-track{display:flex;width:max-content;will-change:transform;
+  animation:band-forward var(--band-speed) linear infinite}
+.band-set{display:flex;align-items:center;flex:none;
+  gap:clamp(18px,2.4vw,34px);padding-inline:clamp(9px,1.2vw,17px)}
+.site-public .band-set span{font-family:var(--disp);font-weight:800;font-size:var(--band-size);
+  line-height:1;letter-spacing:-.02em;text-transform:uppercase;white-space:nowrap}
+/* verda.css still hides the 3rd/5th band children on small phones (written for
+   the old band markup); every phrase belongs in this ticker at every width. */
+.site-public .brand-band .band-set span{display:block}
+/* the middle phrase is outlined — only where stroked text is supported, since
+   transparent fill without a stroke would make it vanish */
+@supports (-webkit-text-stroke:1px black){
+  .site-public .band-set span:nth-of-type(2){color:transparent;-webkit-text-stroke:1.5px var(--lime-ink)}
+}
+/* padel ball: a dark disc with two lime seam arcs, spinning */
+.site-public .band-ball{position:relative;flex:none;display:block;font-size:var(--band-size);
+  width:.78em;height:.78em;border-radius:50%;background:var(--lime-ink);overflow:hidden;
+  animation:band-spin 3.2s linear infinite}
+.site-public .band-ball::before,.site-public .band-ball::after{content:'';position:absolute;
+  top:-30%;bottom:-30%;width:100%;border:2px solid var(--lime);border-radius:50%}
+.site-public .band-ball::before{left:-62%}
+.site-public .band-ball::after{right:-62%}
+@keyframes band-spin{to{transform:rotate(360deg)}}
+.site-public .brand-band:hover .band-track,
+.site-public .brand-band:hover .band-ball{animation-play-state:paused}
+/* Arabic: no case, and a stroked outline breaks up a connected script — so the
+   middle phrase is set apart by tone instead of outline */
+[dir=rtl] .site-public .band-set span{font-family:var(--body);font-weight:700;
+  text-transform:none;letter-spacing:0}
+[dir=rtl] .site-public .band-set span:nth-of-type(2){color:var(--lime-ink);
+  -webkit-text-stroke:0;opacity:.62}
+@keyframes band-forward{from{transform:translateX(-6.25%)}to{transform:translateX(0)}}
+@keyframes band-reverse{from{transform:translateX(0)}to{transform:translateX(-6.25%)}}
+[dir=rtl] .site-public .band-track{animation-name:band-reverse}
 
 /* intro */
 .site-public .intro-section{display:grid;grid-template-columns:minmax(0,.62fr) minmax(0,1.38fr);
@@ -648,14 +777,50 @@ html[data-theme="dark"] .site-public .agency-credit img{filter:brightness(0) inv
   .site-public .site-header{flex-wrap:wrap;gap:12px}
   .site-public .menu-toggle{display:inline-grid;margin-inline-start:auto;order:2}
   .site-public .header-actions{order:3}
-  .site-public .public-nav{display:none;order:4;width:100%;flex-direction:column;gap:2px;
-    padding:8px 0 12px;border-top:1px solid var(--line)}
-  .site-public .public-nav.open{display:flex}
-  .site-public .public-nav a{padding:12px 0;font-size:16px}
-  .site-public .public-nav a.active:after{width:18px;right:auto}
+  /* Full-screen menu overlay. The header's backdrop-filter makes it the
+     containing block for fixed children, which would trap this overlay
+     inside the 70px bar — so the filter is lifted while the menu is open. */
+  html.menu-open{overflow:hidden}
+  html.menu-open .site-public .site-header{backdrop-filter:none;-webkit-backdrop-filter:none}
+  .site-public .public-nav{display:none}
+  .site-public .public-nav.open{display:flex;position:fixed;inset:0;z-index:200;
+    flex-direction:column;align-items:center;justify-content:center;gap:6px;overflow-y:auto;
+    padding:calc(env(safe-area-inset-top,0px) + 84px) 24px calc(env(safe-area-inset-bottom,0px) + 36px);
+    background:color-mix(in srgb,var(--bg) 86%,transparent);
+    backdrop-filter:blur(18px) saturate(1.15);-webkit-backdrop-filter:blur(18px) saturate(1.15);
+    animation:menu-in .32s cubic-bezier(.2,.7,.3,1)}
+  @supports not (backdrop-filter:blur(2px)){.site-public .public-nav.open{background:var(--bg)}}
+  @keyframes menu-in{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+  .site-public .public-nav.open>a{font-family:var(--disp);font-size:clamp(22px,6vw,28px);font-weight:700;
+    letter-spacing:-.02em;color:var(--txt);padding:10px 28px;border-radius:99px;
+    min-height:52px;display:inline-flex;align-items:center;transition:background .16s}
+  .site-public .public-nav.open>a:hover{background:var(--surf2);color:var(--txt)}
+  .site-public .public-nav.open>a.active{background:var(--surf2);color:var(--grn)}
+  .site-public .public-nav.open>a.active:after{display:none}
+  /* each item rises in after the one before it */
+  .site-public .public-nav.open>a{animation:menu-item .42s cubic-bezier(.2,.7,.3,1) both}
+  .site-public .public-nav.open>a:nth-of-type(2){animation-delay:.04s}
+  .site-public .public-nav.open>a:nth-of-type(3){animation-delay:.08s}
+  .site-public .public-nav.open>a:nth-of-type(4){animation-delay:.12s}
+  .site-public .public-nav.open>a:nth-of-type(5){animation-delay:.16s}
+  @keyframes menu-item{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .site-public .public-nav.open .nav-close{display:grid;place-items:center;position:absolute;
+    top:calc(env(safe-area-inset-top,0px) + 16px);inset-inline-start:16px;
+    width:48px;height:48px;border-radius:50%;border:1px solid var(--line2);
+    background:var(--surf);color:var(--txt);cursor:pointer}
+  .site-public .nav-close svg{width:20px;height:20px}
+  .site-public .public-nav.open .nav-extras{display:flex;flex-direction:column;align-items:center;
+    gap:14px;margin-top:22px;width:100%;max-width:300px;
+    animation:menu-item .42s cubic-bezier(.2,.7,.3,1) .22s both}
+  .site-public .nav-extras-book{width:100%;min-height:54px;font-size:16px}
+  .site-public .nav-langs{display:flex;gap:10px;width:100%}
+  .site-public .nav-langs a{flex:1;min-height:46px;display:grid;place-items:center;
+    border:1px solid var(--line2);border-radius:99px;font-size:14px;font-weight:600;color:var(--mut)}
+  .site-public .nav-langs a.is-current{background:var(--surf2);color:var(--txt);border-color:var(--grn)}
   /* the hero already carries this CTA — keep the bar to one row */
   .site-public .nav-book{display:none}
-  .v-bento{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .v-bento>*{flex-basis:calc(50% - 12px)}
+  .v-bento>.v-t2{flex-basis:100%}
   .site-public .court-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
   .site-public .product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .site-public .intro-section{grid-template-columns:minmax(0,1fr);gap:14px}
@@ -669,8 +834,7 @@ html[data-theme="dark"] .site-public .agency-credit img{filter:brightness(0) inv
 }
 @media(max-width:600px){
   .site-public .v-hero h1{font-size:clamp(34px,10vw,52px)}
-  .v-bento{grid-template-columns:minmax(0,1fr)}
-  .v-t2{grid-column:span 1}
+  .v-bento>*,.v-bento>.v-t2{flex-basis:100%}
   .site-public .court-cards{grid-template-columns:minmax(0,1fr)}
   .site-public .product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .site-public .form-grid{grid-template-columns:minmax(0,1fr)}
@@ -755,3 +919,143 @@ html[data-theme="dark"] .site-public .agency-credit img{filter:brightness(0) inv
   .site-public *,.site-public *:before,.site-public *:after{
     transition:none!important;animation:none!important;transform:none!important}
 }
+
+/* ==========================================================================
+   Find us — Google Maps embed. The whole map is one tap target that opens
+   directions in Google Maps (the app on phones); panning the embed is
+   deliberately traded for that. The visible button is the accessible action.
+   ========================================================================== */
+.v-map{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:16px;align-items:stretch}
+.v-map-frame{position:relative;min-height:360px;border-radius:var(--r-lg);overflow:hidden;
+  border:1px solid var(--line);background:var(--surf2);box-shadow:var(--shadow)}
+.v-map-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.v-map-hit{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-end;justify-content:center;
+  padding:18px;background:linear-gradient(180deg,transparent 60%,#040C0833);text-decoration:none}
+.site-public .v-map-chip{display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:0 20px;border-radius:99px;
+  background:var(--lime);color:var(--lime-ink);font-weight:700;font-size:14.5px;box-shadow:0 10px 26px #00000040;
+  transition:transform .2s ease}
+.v-map-chip svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+.v-map-hit:hover .v-map-chip{transform:translateY(-2px)}
+.v-map-card{display:flex;flex-direction:column;gap:14px;justify-content:center;padding:clamp(20px,3vw,32px);
+  background:var(--surf);border:1px solid var(--line);border-radius:var(--r-lg)}
+.site-public .v-map-address{margin:0;font-family:var(--disp);font-size:clamp(20px,2.2vw,26px);font-weight:700;
+  line-height:1.3;letter-spacing:-.02em;color:var(--txt);white-space:pre-line}
+.site-public .v-map-hours{display:flex;align-items:center;gap:9px;margin:0;font-size:14px;color:var(--mut)}
+.v-map-actions{display:flex;flex-wrap:wrap;gap:10px}
+.v-map-actions .btn{flex:1 1 160px;justify-content:center}
+.site-public .v-map-phone{font-family:var(--mono);font-size:14px;color:var(--grn);width:fit-content}
+[dir=rtl] .site-public .v-map-address{letter-spacing:0}
+@media (max-width:900px){.v-map{grid-template-columns:minmax(0,1fr)}.v-map-frame{min-height:300px}}
+@media (prefers-reduced-motion:reduce){.v-map-chip{transition:none}.v-map-hit:hover .v-map-chip{transform:none}}
+/* The embed is centred on the venue, so the brand pin's tip sits on the centre
+   point. Only the teardrop shape is rotated; the box and logo stay upright. */
+.v-map-pin{position:absolute;left:50%;top:50%;width:54px;height:66px;transform:translate(-50%,-100%);
+  display:flex;justify-content:center;pointer-events:none;filter:drop-shadow(0 8px 10px #0000004d)}
+.v-map-pin:before{content:'';position:absolute;top:0;left:0;width:54px;height:54px;box-sizing:border-box;
+  background:#fff;border:3px solid #03774A;border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
+.v-map-pin img{position:relative;width:32px;height:auto;margin-top:13px;align-self:flex-start}
+.v-map-pin:after{content:'';position:absolute;left:50%;bottom:-5px;width:16px;height:16px;margin-left:-8px;
+  border-radius:50%;border:2px solid #03774A;animation:v-map-ping 2.4s ease-out infinite}
+@keyframes v-map-ping{0%{opacity:.7;transform:scale(.5)}100%{opacity:0;transform:scale(2.2)}}
+@media (prefers-reduced-motion:reduce){.v-map-pin:after{animation:none;opacity:0}}
+/* AM/PM beside the big opening-hours numbers */
+.site-public .v-ampm{font-size:.36em;font-weight:700;letter-spacing:.02em;margin-inline-start:.12em;color:var(--mut)}
+
+/* Booking: the single-court field reads like the other controls, with the court's photo */
+.site-public .court-pill{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 14px 6px 6px;
+  border:1px solid var(--line2);border-radius:var(--r-md);background:var(--surf);color:var(--txt)}
+.site-public .court-pill img,.site-public .court-pill-icon{width:40px;height:40px;flex:none;border-radius:10px;object-fit:cover}
+.site-public .court-pill-icon{position:relative;background:var(--glow);border:1.5px solid var(--grn)}
+.site-public .court-pill-icon:after{content:'';position:absolute;left:50%;top:6px;bottom:6px;border-left:1.5px dashed var(--grn)}
+.site-public .court-pill-name{font-weight:600;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site-public .court-pill-tag{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+[dir=rtl] .site-public .court-pill{padding:6px 6px 6px 14px}
+/* Booking summary picture: the chosen court's photo, or the one set in Settings */
+.site-public .booking-summary .summary-photo{position:relative;aspect-ratio:16/10;margin:18px 0 22px;border-radius:var(--r-md);
+  overflow:hidden;border:1px solid var(--line);background:var(--surf2)}
+.site-public .booking-summary .summary-photo img,.site-public .booking-summary .summary-photo video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+/* the pill sits inside a .field label, so undo the label-caption styling */
+.site-public .field>span.court-pill{color:var(--txt);font-size:15px;font-weight:600}
+.site-public .court-pill-tag{display:none}
+@media (min-width:1200px){.site-public .court-pill-tag{display:inline}}
+
+/* ==========================================================================
+   Home page carried by the chosen hero media.
+   The photo/video is fixed behind the whole page. Two veils sit on it: a dark
+   one so the hero's light text always reads, and a theme-coloured one that
+   fades in as you scroll past the hero (--veil-progress, set by verda.js), so
+   the sections below keep their normal contrast. Cards keep their own solid
+   surfaces on top.
+   ========================================================================== */
+/* z-index -1 inside main's stacking context: above the page ground, below every section's content */
+.site-public .v-page-media{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+.site-public .v-page-media .v-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.site-public .v-veil-hero{position:absolute;inset:0;background:linear-gradient(180deg,#070F0C99 0%,#070F0C73 45%,#070F0CB8 100%)}
+.site-public .v-veil-page{position:absolute;inset:0;background:var(--bg);opacity:var(--veil-progress,0);transition:opacity .12s linear}
+body.home-media main,body.home-media .site-footer{position:relative;z-index:1}
+body.home-media .v-hero{background:transparent;min-height:min(78vh,760px);display:flex;align-items:center}
+/* intro and section headings sit straight on the veiled media */
+body.home-media .intro-section{border-bottom-color:transparent}
+@media (prefers-reduced-motion:reduce){.site-public .v-veil-page{transition:none}}
+
+/* ---------- Nav: one underline that slides to the section in view ---------- */
+.site-public .public-nav{position:relative}
+.site-public .nav-ink{position:absolute;bottom:0;left:0;height:2px;width:0;border-radius:2px;background:var(--lime);
+  pointer-events:none;opacity:0;transition:transform .45s cubic-bezier(.2,.8,.2,1),width .45s cubic-bezier(.2,.8,.2,1),opacity .2s}
+.site-public .public-nav.has-ink .nav-ink{opacity:1}
+.site-public .public-nav.has-ink>a.active:after{display:none}
+.site-public .public-nav>a{transition:color .25s}
+@media (max-width:900px){.site-public .nav-ink{display:none}.site-public .public-nav.has-ink>a.active:after{display:block}}
+@media (prefers-reduced-motion:reduce){.site-public .nav-ink{transition:opacity .2s}}
+
+/* ==========================================================================
+   Home first screen: the hero and the three cards fill exactly one screen
+   (window height minus the header, measured into --header-h by verda.js).
+   The hero takes the leftover height; sizes shrink with screen height so a
+   short laptop still sees the whole cards row. Phones stack the cards, so
+   they keep the natural flow.
+   ========================================================================== */
+@media (min-width:901px){
+  .site-public .v-first-screen{display:flex;flex-direction:column;min-height:calc(100vh - var(--header-h,88px));min-height:calc(100svh - var(--header-h,88px))}
+  .site-public .v-first-screen>.v-hero{flex:1 1 auto;min-height:0;display:flex;align-items:center;
+    padding-block:clamp(18px,4vh,56px)}
+  .site-public .v-first-screen .v-hero h1{font-size:clamp(36px,min(8.4vw,10.5vh),86px);margin-bottom:clamp(8px,2vh,20px)}
+  .site-public .v-first-screen .v-hero p{margin-bottom:0}
+  .site-public .v-first-screen .v-live{margin-bottom:clamp(10px,2.4vh,24px)}
+  .site-public .v-first-screen .v-hero-act{margin-top:clamp(14px,3vh,30px)}
+  .site-public .v-first-cards{flex:none;padding-bottom:clamp(14px,3vh,32px)}
+  .site-public .v-first-cards .v-tile{min-height:clamp(128px,21vh,186px);padding:clamp(14px,2.4vh,22px) 22px;gap:clamp(8px,1.6vh,16px)}
+  .site-public .v-first-cards .v-big{font-size:clamp(28px,min(4.6vw,6.4vh),52px)}
+  .site-public .v-first-cards .v-rates .v-big{font-size:clamp(26px,min(4.2vw,5.8vh),46px)}
+  .site-public .v-first-cards .v-rate-stage{min-height:clamp(64px,10vh,92px)}
+}
+
+/* ==========================================================================
+   Glass cards — same colour as before, now translucent and frosted.
+   The fill is the card's own surface colour at ~64% (so dark-green cards stay
+   dark green, light cards stay light), the backdrop is blurred so text keeps
+   its contrast, and a thin edge plus a top highlight give the glass rim.
+   Browsers without backdrop-filter keep the old solid surface.
+   ========================================================================== */
+.site-public{--glass-fill:64%;--glass-blur:18px}
+.site-public :is(.v-tile,.v-ccard,.court-card,.product-card,.panel,.soft-panel,.v-map-card,.v-courts-empty){
+  background-color:color-mix(in srgb,var(--surf) var(--glass-fill),transparent);
+  background-image:linear-gradient(140deg,#ffffff12 0%,#ffffff05 38%,transparent 60%);
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.35);backdrop-filter:blur(var(--glass-blur)) saturate(1.35);
+  border-color:color-mix(in srgb,var(--txt) 13%,transparent);
+  box-shadow:inset 0 1px 0 #ffffff1a,0 14px 40px #0000001f}
+.site-public .booking-summary{
+  background-color:color-mix(in srgb,var(--surf2) 70%,transparent);
+  background-image:linear-gradient(140deg,#ffffff12 0%,#ffffff05 38%,transparent 60%);
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.35);backdrop-filter:blur(var(--glass-blur)) saturate(1.35);
+  border-color:color-mix(in srgb,var(--txt) 13%,transparent);box-shadow:inset 0 1px 0 #ffffff1a,0 14px 40px #0000001f}
+/* hover keeps the glass, just lifts the rim */
+.site-public :is(.v-tile,.v-ccard,.product-card):hover{border-color:color-mix(in srgb,var(--txt) 22%,transparent)}
+/* light theme: a whiter rim reads as glass on a pale page */
+html[data-theme="light"] .site-public :is(.v-tile,.v-ccard,.court-card,.product-card,.panel,.soft-panel,.v-map-card,.v-courts-empty,.booking-summary){
+  box-shadow:inset 0 1px 0 #ffffffcc,0 14px 40px #0625170f}
+@media (prefers-color-scheme:light){html:not([data-theme="dark"]) .site-public :is(.v-tile,.v-ccard,.court-card,.product-card,.panel,.soft-panel,.v-map-card,.v-courts-empty,.booking-summary){
+  box-shadow:inset 0 1px 0 #ffffffcc,0 14px 40px #0625170f}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .site-public :is(.v-tile,.v-ccard,.court-card,.product-card,.panel,.soft-panel,.v-map-card,.v-courts-empty){background-color:var(--surf)}
+  .site-public .booking-summary{background-color:var(--surf2)}}

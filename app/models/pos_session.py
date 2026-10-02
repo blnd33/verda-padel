@@ -17,6 +17,11 @@ class POSSession(db.Model):
     billed_seconds = db.Column(db.Integer, default=0)
     discount_kind = db.Column(db.String(20))
     discount_value = db.Column(db.Integer, default=0)
+    # A fixed invoice discount comes off one currency's total; a percentage off both.
+    discount_currency = db.Column(db.String(3), default='IQD', server_default='IQD', nullable=False)
+    # Dollar side of the bill (cents); total_amount / manual_discount are the dinar side.
+    total_usd = db.Column(db.BigInteger, default=0, server_default='0', nullable=False)
+    manual_discount_usd = db.Column(db.BigInteger, default=0, server_default='0', nullable=False)
     finalized_at = db.Column(db.DateTime, index=True)
     cashier_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     cashier = db.relationship('User')
@@ -65,6 +70,8 @@ class POSSession(db.Model):
             return self.stadium.name
         elif self.session_type == 'table' and self.table:
             return self.table.name
+        elif self.session_type == 'person':
+            return self.customer_name
         return 'بيع سريع'
 
     def get_orders_total(self):

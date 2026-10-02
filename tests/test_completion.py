@@ -20,7 +20,7 @@ def test_website_archive_payments_and_prefullfillment_refund(app,staff):
     assert b'Archive buyer' not in staff.get('/admin/archive?period=all&method=unpaid&export=csv').data
     assert post(staff,'/admin/orders/1',dict(action='refund',reason='Fictional return',restock='on')).status_code==302
     with app.app_context():
-        report=core.reports(core.business_date(),core.business_date())
+        report=core.reports(core.business_date(),core.business_date())['money']['IQD']
         assert report['sales']==report['refunds']==report['collected']==report['cogs']==0
         assert db.session.get(Product,1).stock==10
 
@@ -32,7 +32,7 @@ def test_debt_refund_reconciles_stock_cost_and_collections(app,staff):
     post(staff,'/pos/session/1',dict(action='refund',reason='Returned goods',restock='on'))
     post(staff,'/pos/session/1',dict(action='refund',reason='Repeated return',restock='on'))
     with app.app_context():
-        report=core.reports(core.business_date(),core.business_date())
+        report=core.reports(core.business_date(),core.business_date())['money']['IQD']
         assert report['sales']==report['refunds']==24000
         assert report['net_sales']==report['cogs']==report['collected']==report['debt_collections']==report['outstanding']==0
         assert Payment.query.count()==2 and Adjustment.query.count()==1
@@ -138,5 +138,5 @@ def test_expense_filters_and_void_audit(app,staff):
     assert b'1,500' not in staff.get('/admin/expenses?method=cash').data
     assert post(staff,'/admin/expenses/1/edit',dict(action='archive',reason='Fictional correction')).status_code==302
     with app.app_context():
-        assert core.reports(core.business_date(),core.business_date())['expenses_total']==0
+        assert core.reports(core.business_date(),core.business_date())['money']['IQD']['expenses_total']==0
         assert ActivityLog.query.filter_by(action='Record archived',entity_type='expense').count()==1

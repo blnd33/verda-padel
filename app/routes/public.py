@@ -3,14 +3,47 @@ from flask import Blueprint, render_template, request, session, redirect, abort,
 from app import db
 from app.models import Stadium, Product, Category, Booking, Order
 from app.services import core
+from app.i18n import clock_of
 
 main = Blueprint('main', __name__)
 booking = Blueprint('booking', __name__, url_prefix='/booking')
 store = Blueprint('store', __name__, url_prefix='/store')
 
+def court_cards(courts):
+    """What each public court card shows: the live status right now, and the
+    rate range from the same rules() the booking engine prices with."""
+    from app.models import CourtBlock, POSSession
+    s=core.settings()
+    at=core.now()
+    hour=core.local(at).hour
+    open_now=s.opening_hour==s.closing_hour or core.within_window(hour,s.opening_hour,s.closing_hour)
+    cards=[]
+    for court in courts:
+        rule=core.rules(court)
+        rates=sorted({int(rule['rate'])}|({int(rule['evening_rate'])} if rule['evening_rate'] else set()))
+        if not open_now:
+            status='closed'
+        elif (Booking.query.filter(Booking.stadium_id==court.id,Booking.status.in_(['pending','confirmed','pending_cancel']),
+                Booking.starts_at<=at,Booking.ends_at>at).first()
+              or CourtBlock.query.filter(CourtBlock.stadium_id==court.id,CourtBlock.starts_at<=at,CourtBlock.ends_at>at).first()
+              or POSSession.query.filter_by(stadium_id=court.id,status='active').first()):
+            status='busy'
+        else:
+            status='free'
+        cards.append(dict(court=court,status=status,low=rates[0],high=rates[-1]))
+    return cards
+
+def currency_totals(lines):
+    """Basket subtotal per currency; dollar and dinar goods are never summed together."""
+    totals={'IQD':0,'USD':0}
+    for p,q in lines:
+        totals[p.currency or 'IQD']+=p.price*q
+    return totals
+
 @main.get('/')
 def home():
-    return render_template('home.html', courts=Stadium.query.filter_by(is_active=True,show_in_booking=True).all(),
+    courts=Stadium.query.filter_by(is_active=True,show_in_booking=True).all()
+    return render_template('home.html', courts=courts, court_cards=court_cards(courts),
         products=core.product_query('website').filter(Product.featured.is_(True)).limit(4).all())
 
 @main.get('/language/<lang>')
@@ -58,7 +91,7 @@ def book():
         try:
             court,business_day,a,b,d=core.interval(court_id,day,hour,duration)
             original,discount=core.price_interval(a,d*3600,core.rules(court))
-            slots.append(dict(hour=hour,available=True,price=original-discount,original=original,discount=discount,end=core.local(b).strftime('%H:%M'),actual_date=core.local(a).date()))
+            slots.append(dict(hour=hour,available=True,price=original-discount,original=original,discount=discount,end=clock_of(core.local(b),session.get('lang',s.default_language)),actual_date=core.local(a).date()))
         except core.RuleError:
             slots.append(dict(hour=hour,available=False))
     return render_template('booking.html',courts=courts,court_id=str(court_id),day=day,duration=str(duration),slots=slots)
@@ -127,7 +160,7 @@ def cart():
         valid=core.visible_product(p,'website') and (not p.track_stock or p.stock>=qty)
         invalid=invalid or not valid
         lines.append(dict(product=p,product_id=pid,quantity=qty,valid=valid,total=p.price*qty if p else 0))
-    return render_template('cart.html',lines=lines,total=sum(l['total'] for l in lines),invalid=invalid)
+    return render_template('cart.html',lines=lines,totals=currency_totals((l['product'],l['quantity']) for l in lines if l['product']),invalid=invalid)
 
 @store.route('/checkout',methods=['GET','POST'])
 def checkout():
@@ -141,7 +174,7 @@ def checkout():
         session['cart']={}
         return redirect('/store/confirmation/'+order.reference)
     lines=core.basket_lines(items,'website')
-    return render_template('checkout.html',total=sum(p.price*q for p,q in lines))
+    return render_template('checkout.html',totals=currency_totals(lines))
 
 @store.get('/confirmation/<reference>')
 def order_confirmation(reference):

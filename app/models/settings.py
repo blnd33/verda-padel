@@ -38,6 +38,8 @@ class Settings(db.Model):
     delivery_enabled = db.Column(db.Boolean, default=False, server_default='0', nullable=False)
     delivery_fee = db.Column(db.BigInteger, default=0, server_default='0', nullable=False)
     directions_url = db.Column(db.String(300))
+    # "latitude,longitude" of the venue; drives the website map and directions.
+    map_coordinates = db.Column(db.String(60))
     receipt_width = db.Column(db.Integer, default=80, server_default='80', nullable=False)
     auto_print = db.Column(db.Boolean, default=False, server_default='0', nullable=False)
     label_size = db.Column(db.String(20), default='50x30', server_default='50x30', nullable=False)

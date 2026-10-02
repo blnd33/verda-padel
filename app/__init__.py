@@ -59,13 +59,25 @@ def create_app(config=None):
     csrf.init_app(app)
     from app.services import core
     from app.security import permitted, NAVIGATION
-    from app.i18n import translate
+    from app.i18n import translate, clock, clock_of, hour12, meridiem
     from app.routes.public import main, booking, store
     from app.routes.auth import auth
     from app.routes.admin import admin
     from app.routes.pos import pos
     for bp in [main, booking, store, auth, admin, pos]:
         app.register_blueprint(bp)
+
+    @app.url_defaults
+    def version_static_urls(endpoint, values):
+        """Stamp every static URL with the file's modification time. The service
+        worker serves /static/ cache-first, so without this a changed stylesheet
+        or script keeps its old URL and visitors never receive the update."""
+        if endpoint != 'static' or 'v' in values or not values.get('filename'):
+            return
+        try:
+            values['v'] = int(os.stat(os.path.join(app.static_folder, values['filename'])).st_mtime)
+        except OSError:
+            pass
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -113,7 +125,7 @@ def create_app(config=None):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['Referrer-Policy'] = 'same-origin'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+        response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'self' https://www.google.com https://maps.google.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
         if request.path.startswith(('/admin','/pos','/auth','/booking/confirmation','/store/confirmation')):
             response.headers['X-Robots-Tag'] = 'noindex, nofollow'
             response.headers['Cache-Control'] = 'no-store'
@@ -155,6 +167,19 @@ def create_app(config=None):
         def media_url(prefix):
             data=(s.content or {}) if s else {}
             return data.get(prefix+'_'+media_mode(prefix))
+        def venue_map():
+            """Google Maps embed and directions links for the venue: exact
+            coordinates when set, otherwise the address text, otherwise none."""
+            from urllib.parse import quote
+            if not s:
+                return None
+            place=s.map_coordinates or (s.address or '').strip()
+            if not place:
+                return None
+            target=quote(place,safe=',')
+            return dict(embed=f'https://www.google.com/maps?q={target}&z=16&output=embed',
+                directions=f'https://www.google.com/maps/dir/?api=1&destination={target}' if s.map_coordinates or not s.directions_url else s.directions_url,
+                open=f'https://www.google.com/maps/search/?api=1&query={target}')
         def line_name(line):
             snapshot=(line.get('snapshot') if isinstance(line,dict) else line.snapshot) or {}
             return snapshot.get('name_'+lang) or snapshot.get('name_en') or '—'
@@ -174,13 +199,23 @@ def create_app(config=None):
             can=permitted, nav=grouped_nav(), form_key=lambda:secrets.token_urlsafe(24),
             cart_count=sum(session.get('cart', {}).values()), content=content,
             media_mode=media_mode, media_url=media_url,
-            business_today=core.business_date() if s else None, quote_session=core.session_quote, balance=core.balance,
+            business_today=core.business_date() if s else None, quote_session=core.session_quote, line_amounts=core.line_amounts, venue_map=venue_map(), balance=core.balance,
             permissions=__import__('app.security',fromlist=['PERMISSIONS']).PERMISSIONS,
             page_link=lambda page:query_link(page=page),export_link=lambda:query_link(export='csv'),line_name=line_name,
-            receipt_time=lambda value,record:core.local(value,(record.venue_snapshot or {}).get('timezone',s.timezone)).strftime('%Y-%m-%d %H:%M') if value else '—',unread_count=unread_count)
+            receipt_time=lambda value,record:clock_of(core.local(value,(record.venue_snapshot or {}).get('timezone',s.timezone)),lang,True) if value else '—',
+            clock=lambda hour,minute=0,short=False:clock(hour,minute,lang,short),hour12=hour12,meridiem=lambda hour:meridiem(hour,lang),unread_count=unread_count)
 
     app.jinja_env.filters['iqd'] = lambda value:f'{core.money(value or 0):,}'
-    app.jinja_env.filters['venue_time'] = lambda value:core.local(value).strftime('%Y-%m-%d %H:%M') if value else '—'
+    from app import money as currency
+    # {{ amount|money(currency) }} -> '3,000 IQD' or '$45.00'; |money_input for form fields.
+    app.jinja_env.filters['money'] = lambda value,code='IQD':currency.fmt(core.money(value or 0),code or 'IQD')
+    app.jinja_env.filters['money_input'] = lambda value,code='IQD':currency.field_value(value,code or 'IQD')
+    app.jinja_env.globals.update(CURRENCIES=currency.CURRENCIES,CURRENCY_LABELS=currency.LABELS)
+    def current_lang():
+        s = core.settings()
+        return session.get('lang', s.default_language if s else 'en')
+    app.jinja_env.filters['venue_time'] = lambda value:clock_of(core.local(value),current_lang(),True) if value else '—'
+    app.jinja_env.filters['venue_clock'] = lambda value:clock_of(core.local(value),current_lang()) if value else '—'
     app.jinja_env.filters['short_ref'] = lambda value:(value or '')[:10].upper()
 
     @app.errorhandler(core.RuleError)

@@ -30,7 +30,8 @@ class Order(db.Model):
     address = db.Column(db.Text)      # detailed address
 
     # Order Details
-    total_price = db.Column(db.BigInteger, nullable=False)
+    total_price = db.Column(db.BigInteger, nullable=False)  # dinar lines + delivery fee
+    total_usd = db.Column(db.BigInteger, default=0, server_default='0', nullable=False)  # dollar lines, cents
     status = db.Column(db.String(20), default='pending')  # pending, confirmed, processing, delivered, cancelled
     notes = db.Column(db.Text)
 
@@ -124,6 +125,7 @@ class OrderItem(db.Model):
 
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.BigInteger, nullable=False)
+    currency = db.Column(db.String(3), default='IQD', server_default='IQD', nullable=False)
 
     # Relationships
     product = db.relationship('Product', backref='order_items')

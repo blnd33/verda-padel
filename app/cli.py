@@ -24,8 +24,8 @@ def register_commands(app):
     @click.option('--password',prompt=True,hide_input=True,confirmation_prompt=True)
     def create_admin(username,email,password):
         """Create an administrator; no default or fixed password is seeded."""
-        if len(password)<12 or not username.strip() or '@' not in email:
-            raise click.ClickException('Use a username, valid email and password of at least 12 characters.')
+        if not password or not username.strip() or '@' not in email:
+            raise click.ClickException('Use a username, valid email and a password.')
         if User.query.filter(db.or_(User.username==username.strip().lower(),User.email==email.strip().lower())).first():
             raise click.ClickException('Username or email already exists.')
         user=User(username=username.strip().lower(),email=email.strip().lower(),role='super_admin',is_active=True,is_admin=True,permissions=[])

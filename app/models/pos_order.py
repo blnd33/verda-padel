@@ -50,6 +50,13 @@ class POSOrderItem(db.Model):
 
     quantity = db.Column(db.Integer, nullable=False, default=1)
     price = db.Column(db.BigInteger, nullable=False)  # السعر وقت الطلب
+    currency = db.Column(db.String(3), default='IQD', server_default='IQD', nullable=False)
+    # Units given away: the customer pays nothing for them, stock still moves,
+    # and reports carry them at their snapshot cost rather than as a sale.
+    free_quantity = db.Column(db.Integer, default=0, server_default='0', nullable=False)
+    # Line discount on the payable (non-free) units: 'percentage' or 'fixed' IQD.
+    discount_kind = db.Column(db.String(20))
+    discount_value = db.Column(db.BigInteger, default=0, server_default='0', nullable=False)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
