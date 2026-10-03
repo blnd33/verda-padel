@@ -1,0 +1,21 @@
+[Unit]
+Description=Verda Padel
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/verda-padel
+EnvironmentFile=/var/www/verda-padel/.env
+ExecStart=/var/www/verda-padel/.venv/bin/waitress-serve \
+    --host=127.0.0.1 \
+    --port=8000 \
+    --threads=4 \
+    "run:app"
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
