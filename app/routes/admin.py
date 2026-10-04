@@ -121,6 +121,12 @@ def manage(module,record_id=None):
     record=db.get_or_404(model,record_id) if record_id else None
     if request.method=='POST':
         original = {f:getattr(record,f,None) for f,label,kind,req in fields if kind not in ['password','image']} if record else {}
+        if record and request.form.get('action')=='delete':
+            if module not in ['products','categories']:
+                abort(404)
+            message=core.delete_product(record) if module=='products' else core.delete_category(record)
+            flash(message,'success')
+            return redirect('/admin/'+module)
         if record and request.form.get('action')=='archive':
             if module=='staff':
                 guard_staff(record,False,record.role)
@@ -218,6 +224,8 @@ def manage(module,record_id=None):
         core.audit('Record created' if creating else 'Record updated',record,reason,before,after)
         return redirect('/admin/'+module)
     query=model.query
+    if module=='products':
+        query=query.filter(Product.deleted_at.is_(None))
     q=request.args.get('q','').strip()
     if q:
         name='name_en' if module in ['products','categories'] else 'username' if module=='staff' else 'description' if module=='expenses' else 'name'
@@ -244,6 +252,8 @@ def guard_staff(record,active,role):
 @admin.get('/bookings')
 def bookings():
     authorize('cancellations' if request.args.get('status')=='pending_cancel' else 'bookings')
+    if core.keep_regulars_reserved():
+        db.session.commit()
     query=Booking.query
     for field in ['status','stadium_id']:
         if request.args.get(field):
@@ -270,6 +280,92 @@ def bookings():
     return render_template('admin/bookings.html',title='Bookings',rows=query.order_by(order).paginate(page=request.args.get('page',1,type=int),per_page=20),courts=Stadium.query.all(),
         today_count=Booking.query.filter(Booking.business_day==today,Booking.status.in_(['pending','confirmed','pending_cancel','completed'])).count())
 
+@admin.route('/regulars',methods=['GET','POST'])
+@require('bookings')
+def regulars():
+    """Weekly regular bookings: the same slot every week, next game kept reserved."""
+    if request.method=='POST':
+        action=request.form.get('action')
+        if action=='create':
+            core.create_regulars(request.form)
+        else:
+            authorize('cancellations')
+            series=db.get_or_404(RegularBooking,core.integer(request.form.get('id'),1))
+            if action=='cancel_week':
+                core.cancel_regular_week(series,request.form.get('reason',''))
+            elif action=='stop':
+                core.stop_regular(series,request.form.get('reason',''))
+            else:
+                raise core.RuleError('Choose a valid action.')
+        return redirect('/admin/regulars')
+    if core.keep_regulars_reserved():
+        db.session.commit()
+    active=RegularBooking.query.filter_by(active=True).order_by(RegularBooking.weekday,RegularBooking.hour).all()
+    ended=RegularBooking.query.filter_by(active=False).order_by(RegularBooking.ended_at.desc()).limit(20).all()
+    return render_template('admin/regulars.html',title='Regular bookings',active=active,ended=ended,
+        states={s.id:core.regular_state(s) for s in active+ended},courts=Stadium.query.filter_by(is_active=True).all())
+
+@admin.route('/clients',methods=['GET','POST'])
+@require('clients')
+def clients():
+    """Regular customers with an account: their bills go on their name and
+    they pay whenever they like."""
+    if request.method=='POST':
+        client=core.create_client(request.form)
+        flash(core.said('Account opened for {name}.',name=client.name))
+        return redirect(f'/admin/clients/{client.id}')
+    q=request.args.get('q','').strip()
+    query=Client.query
+    if q:
+        query=query.filter(db.or_(Client.name.ilike('%'+q+'%'),Client.phone.ilike('%'+q+'%')))
+    rows=query.order_by(Client.name).all()
+    owes={c.id:core.client_owes(c) for c in rows}
+    if request.args.get('show')=='owing':
+        rows=[c for c in rows if any(owes[c.id].values())]
+    last={}
+    for c in rows:
+        visits=[s.finalized_at or s.start_time for s in c.sessions if s.status!='cancelled']
+        last[c.id]=max(visits) if visits else None
+    open_tabs={s.client_id:s for s in POSSession.query.filter(POSSession.client_id.isnot(None),POSSession.session_type=='person',
+        POSSession.status.in_(['active','stopped'])).all()}
+    every=Client.query.all()
+    return render_template('admin/clients.html',title='Clients',rows=rows,owes=owes,last=last,open_tabs=open_tabs,
+        total={code:sum(core.client_owes(c)[code] for c in every) for code in currency.CURRENCIES},
+        owing_count=sum(1 for c in every if any(core.client_owes(c).values())),client_count=len(every))
+
+@admin.route('/clients/<int:client_id>',methods=['GET','POST'])
+@require('clients')
+def client_detail(client_id):
+    client=db.get_or_404(Client,client_id)
+    if request.method=='POST':
+        action=request.form.get('action')
+        if action=='pay':
+            left=core.client_pay(client,request.form.get('currency'),request.form.get('amount'),request.form.get('method'))
+            code=currency.check(request.form.get('currency'))
+            flash(core.said('Payment recorded. {name} now owes {amount}.',name=client.name,amount=currency.fmt(left,code)) if left
+                else core.said('Payment recorded. {name} has paid everything in this currency.',name=client.name))
+        elif action=='charge':
+            core.client_charge(client,request.form)
+            flash(core.said('Added to {name}’s account.',name=client.name))
+        elif action=='edit':
+            core.create_client(request.form,client)
+            flash(core.said('Saved.'))
+        elif action=='delete':
+            name=client.name
+            core.delete_client(client)
+            flash(core.said('{name}’s account was deleted. Their past bills stay in the receipt archive.',name=name))
+            return redirect('/admin/clients')
+        else:
+            raise core.RuleError('Choose a valid action.')
+        return redirect(f'/admin/clients/{client.id}')
+    owes=core.client_owes(client)
+    bills=sorted(client.debts,key=lambda d:(d.date or date.min,d.id),reverse=True)
+    payments=sorted((p for d in client.debts for p in d.collections),key=lambda p:p.created_at or datetime.min,reverse=True)
+    open_tab=next((s for s in client.sessions if s.session_type=='person' and s.status in ['active','stopped']),None)
+    return render_template('admin/client.html',title='Clients',client=client,owes=owes,bills=bills,payments=payments,open_tab=open_tab,
+        charged={code:sum(d.amount for d in client.debts if d.status!='void' and (d.currency or 'IQD')==code) for code in currency.CURRENCIES},
+        paid={code:sum(d.paid_amount for d in client.debts if d.status!='void' and (d.currency or 'IQD')==code) for code in currency.CURRENCIES})
+
 @admin.route('/bookings/new',methods=['GET','POST'])
 @require('bookings')
 def new_booking():
@@ -286,6 +382,9 @@ def booking_detail(record_id):
         authorize('cancellations' if action in ['cancel','restore','request_cancel','reject'] else 'bookings')
         if action=='edit':
             core.create_booking(request.form,public=False,existing=record)
+        elif action=='repeat_weekly':
+            core.regular_from_booking(record)
+            return redirect('/admin/regulars')
         else:
             core.decide_booking(record,action,request.form.get('reason',''))
         return redirect(safe_admin_next(request.form.get('next')) or f'/admin/bookings/{record.id}')
@@ -349,7 +448,7 @@ def inventory():
         core.stock_change(p,qty,reason,p)
         core.audit('Stock adjusted',p,reason,after={'delta':qty})
         return redirect('/admin/inventory')
-    return render_template('admin/inventory.html',title='Inventory',products=Product.query.order_by(Product.id.desc()).all(),
+    return render_template('admin/inventory.html',title='Inventory',products=Product.query.filter(Product.deleted_at.is_(None)).order_by(Product.id.desc()).all(),
         rows=StockMovement.query.order_by(StockMovement.id.desc()).paginate(page=request.args.get('page',1,type=int),per_page=30))
 
 @admin.route('/blocks',methods=['GET','POST'])
@@ -507,7 +606,7 @@ def barcodes():
         p.barcode='VP'+secrets.token_hex(6).upper()
         core.audit('Barcode regenerated',p,core.text_value(request.form.get('reason'),True),{'barcode':previous},{'barcode':p.barcode})
         return redirect('/admin/barcodes')
-    query=Product.query
+    query=Product.query.filter(Product.deleted_at.is_(None))
     if request.args.get('category'):
         query=query.filter_by(category_id=core.integer(request.args['category'],1))
     products=query.all()

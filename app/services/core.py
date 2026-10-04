@@ -225,6 +225,158 @@ def decide_booking(record, action, reason=''):
     audit('Booking ' + action, record, reason, {'status': old}, {'status': record.status})
 
 
+# ---------------------------------------------------------------------------
+# Weekly regular bookings
+# ---------------------------------------------------------------------------
+LIVE_BOOKING = ['pending', 'confirmed', 'pending_cancel']
+PAST_SLOT = 'Choose an upcoming time within the booking window.'
+
+
+def reserve_regular(series, at=None):
+    """Keep the series' next game reserved. While a game is upcoming or being
+    played nothing happens; once it is played, cancelled or its time has passed,
+    the next matching week is reserved as a confirmed booking. A week whose slot
+    is taken or blocked is skipped and remembered on the series."""
+    if not series.active:
+        return None
+    at = at or now()
+    if Booking.query.filter(Booking.regular_id == series.id, Booking.status.in_(LIVE_BOOKING),
+                            Booking.ends_at > at).first():
+        return None
+    used = {b.business_day for b in Booking.query.filter_by(regular_id=series.id)}
+    today = business_date(at)
+    for offset in range(0, 22):
+        day = today + timedelta(days=offset)
+        if day < series.starts_on or day.weekday() != series.weekday or day in used:
+            continue
+        try:
+            court, day, a, b, duration = interval(series.stadium_id, day, series.hour, series.duration_hours, public=False)
+        except RuleError as error:
+            if str(error) != PAST_SLOT:
+                series.conflict_on = day
+            continue
+        rule = rules(court)
+        original, discount = price_interval(a, duration * 3600, rule)
+        record = Booking(reference=reference(), customer_name=series.customer_name, customer_phone=series.customer_phone,
+            notes=series.notes, stadium_id=court.id, business_day=day, starts_at=a, ends_at=b,
+            date=local(a).date(), start_time=local(a).time().replace(tzinfo=None), end_time=local(b).time().replace(tzinfo=None),
+            duration_hours=duration, original_price=original, discount_amount=discount, final_price=original - discount,
+            discount_percentage=rule['discount_percentage'], pricing_snapshot=rule, status='confirmed', source='regular',
+            regular_id=series.id, confirmed_at=now(), confirmed_by=series.created_by)
+        db.session.add(record)
+        db.session.flush()
+        audit('Weekly booking reserved', record)
+        return record
+    return None
+
+
+def keep_regulars_reserved():
+    """Run on staff page loads and the cashier's regular check. Each series is
+    tried in its own savepoint so two screens racing cannot double-book a week."""
+    from sqlalchemy.exc import IntegrityError
+    created = []
+    for series in RegularBooking.query.filter_by(active=True).all():
+        savepoint = db.session.begin_nested()
+        try:
+            record = reserve_regular(series)
+            savepoint.commit()
+        except IntegrityError:
+            savepoint.rollback()
+            continue
+        if record:
+            created.append(record)
+    return created
+
+
+def create_regulars(data):
+    """One series per chosen weekday ("twice a week" = two series), each with
+    its next game reserved straight away."""
+    details = customer(data)
+    court = db.session.get(Stadium, integer(data.get('stadium_id'), 1))
+    if not court or not court.is_active:
+        raise RuleError('This court is not available.')
+    days = sorted({integer(d, 0, 6) for d in (data.getlist('weekday') if hasattr(data, 'getlist') else data.get('weekday', []))})
+    if not days:
+        raise RuleError('Choose at least one day of the week.')
+    hour = integer(data.get('hour'), 0, 23)
+    duration = integer(data.get('duration'), 1, settings().max_booking_hours)
+    try:
+        starts_on = date.fromisoformat(str(data.get('starts_on') or business_date()))
+    except ValueError:
+        raise RuleError('Choose a valid date.')
+    created = []
+    for weekday in days:
+        if RegularBooking.query.filter_by(active=True, stadium_id=court.id, weekday=weekday, hour=hour).first():
+            raise RuleError('This weekly slot is already a regular booking.')
+        series = RegularBooking(customer_name=details['customer_name'], customer_phone=details['customer_phone'],
+            notes=details.get('notes') or None, stadium_id=court.id, weekday=weekday, hour=hour, duration_hours=duration,
+            starts_on=starts_on, created_by=actor(), created_at=now())
+        db.session.add(series)
+        db.session.flush()
+        audit('Regular booking created', series)
+        reserve_regular(series)
+        created.append(series)
+    return created
+
+
+def regular_from_booking(booking):
+    """'Repeat every week' on an existing booking: it becomes the first game."""
+    if booking.regular_id:
+        raise RuleError('This booking is already a weekly regular booking.')
+    if booking.status not in ['pending', 'confirmed']:
+        raise RuleError('Only an open booking can be repeated every week.')
+    series = RegularBooking(customer_name=booking.customer_name, customer_phone=booking.customer_phone, notes=booking.notes,
+        stadium_id=booking.stadium_id, weekday=booking.business_day.weekday(), hour=booking.start_time.hour,
+        duration_hours=booking.duration_hours, starts_on=booking.business_day, created_by=actor(), created_at=now())
+    db.session.add(series)
+    db.session.flush()
+    booking.regular_id = series.id
+    audit('Regular booking created', series)
+    return series
+
+
+def cancel_regular_week(series, reason):
+    """They will not come this week: cancel only this game; next week is reserved."""
+    live = Booking.query.filter(Booking.regular_id == series.id, Booking.status.in_(LIVE_BOOKING),
+                                Booking.ends_at > now()).first()
+    if not live:
+        raise RuleError('There is no upcoming game to cancel.')
+    decide_booking(live, 'cancel', reason)
+    return reserve_regular(series)
+
+
+def stop_regular(series, reason):
+    """End the standing slot and release the reserved game."""
+    if not series.active:
+        return
+    reason = text_value(reason, True, 255)
+    for live in Booking.query.filter(Booking.regular_id == series.id, Booking.status.in_(LIVE_BOOKING),
+                                     Booking.ends_at > now()).all():
+        if not live.pos_sessions:
+            decide_booking(live, 'cancel', reason)
+    series.active, series.ended_at, series.ended_by, series.end_reason = False, now(), actor(), reason
+    audit('Regular booking stopped', series, reason)
+
+
+def regular_state(series, at=None):
+    """Next reserved game and how the last one went, for the regulars page."""
+    at = at or now()
+    games = Booking.query.filter_by(regular_id=series.id).order_by(Booking.starts_at).all()
+    upcoming = next((b for b in games if b.status in LIVE_BOOKING and b.ends_at > at), None)
+    past = [b for b in games if b.ends_at <= at or b.status in ['completed', 'cancelled']]
+    last = past[-1] if past else None
+    if not last:
+        result = None
+    elif last.status == 'completed' or last.pos_sessions:
+        result = 'played'
+    elif last.status == 'cancelled':
+        result = 'cancelled'
+    else:
+        result = 'missed'
+    return dict(upcoming=upcoming, last=last, result=result,
+                played=sum(1 for b in games if b.status == 'completed' or b.pos_sessions))
+
+
 def visible_product(product, channel):
     if not product or not product.is_active or not getattr(product, 'show_in_' + channel):
         return False
@@ -236,6 +388,31 @@ def product_query(channel):
     return Product.query.outerjoin(Category).filter(Product.is_active.is_(True),
         getattr(Product, 'show_in_' + channel).is_(True), or_(Category.id.is_(None),
         (Category.is_active.is_(True) & getattr(Category, 'show_on_' + channel).is_(True))))
+
+
+def delete_product(product):
+    """Delete from the catalog. A product that was never sold is removed
+    outright; one with sales keeps its row (hidden everywhere, barcode freed)
+    because past bills, receipts and reports still point at it."""
+    name = product.name_en
+    sold = POSOrderItem.query.filter_by(product_id=product.id).first() or OrderItem.query.filter_by(product_id=product.id).first()
+    audit('Record deleted', product, after={'name': name, 'kept_for_history': bool(sold)})
+    if sold:
+        product.deleted_at, product.is_active, product.featured = now(), False, False
+        product.show_in_pos = product.show_in_website = False
+        product.barcode = None
+        return 'Deleted. Its past sales stay in receipts and reports.'
+    StockMovement.query.filter_by(product_id=product.id).delete()
+    db.session.delete(product)
+    return 'Deleted.'
+
+
+def delete_category(category):
+    """Delete a category; its products stay, without a category."""
+    Product.query.filter_by(category_id=category.id).update({'category_id': None})
+    audit('Record deleted', category, after={'name': category.name_en})
+    db.session.delete(category)
+    return 'Deleted. Its products now have no category.'
 
 
 def stock_change(product, delta, reason, source):
@@ -316,11 +493,43 @@ def venue_snapshot():
                 cashier=current_user.username if current_user and current_user.is_authenticated else None)
 
 
+def court_busy_message(court, clash, block):
+    """Say exactly what stops a walk-in on this court, and what to do about it."""
+    from flask import session, has_request_context
+    from app.i18n import translate, clock_of
+    lang = session.get('lang', settings().default_language) if has_request_context() else 'en'
+    t = lambda text: translate(text, lang)
+    if clash:
+        values = dict(court=court.name, name=clash.customer_name, status=t(clash.status),
+                      start=clock_of(local(clash.starts_at), lang), end=clock_of(local(clash.ends_at), lang),
+                      minutes=settings().minimum_minutes)
+        if clash.starts_at <= now():
+            return t('{court} is booked right now for {name} ({start} – {end}, {status}). If they are here, '
+                     'start it from “Bookings starting now” or choose it under “Link reservation”; '
+                     'otherwise cancel that booking first.').format(**values)
+        return t('{court} is booked for {name} at {start} ({status}), within the {minutes}-minute minimum session. '
+                 'Use another court for the walk-in, or move or cancel that booking.').format(**values)
+    return t('{court} is blocked for maintenance until {end}.').format(
+        court=court.name, end=clock_of(local(block.ends_at), lang, True))
+
+
 def start_session(data):
     kind = data.get('session_type')
     if kind not in ['stadium', 'person', 'quick']:
         raise RuleError('Choose a court or open a tab for a person.')
     location = None
+    client = None
+    if data.get('client_id'):
+        client = db.session.get(Client, integer(data.get('client_id'), 1))
+        if not client:
+            raise RuleError('This client account no longer exists.')
+        if kind == 'person':
+            # One open tab per client: tapping their name again reopens it.
+            open_tab = POSSession.query.filter(POSSession.client_id == client.id, POSSession.session_type == 'person',
+                POSSession.status.in_(['active', 'stopped'])).first()
+            if open_tab:
+                return open_tab
+        data = dict(data, customer_name=client.name, customer_phone=client.phone or '')
     if kind == 'person' and not text_value(data.get('customer_name'), limit=100):
         raise RuleError('Enter the name of the person this tab belongs to.')
     if kind == 'stadium':
@@ -347,9 +556,11 @@ def start_session(data):
             Booking.ends_at > now())
         if booking:
             conflicts = conflicts.filter(Booking.id != booking.id)
-        if conflicts.first() or CourtBlock.query.filter(CourtBlock.stadium_id==location.id,
-                CourtBlock.starts_at < next_end, CourtBlock.ends_at > now()).first():
-            raise RuleError('A reservation or maintenance block occupies this time.')
+        clash = conflicts.order_by(Booking.starts_at).first()
+        block = CourtBlock.query.filter(CourtBlock.stadium_id==location.id,
+                CourtBlock.starts_at < next_end, CourtBlock.ends_at > now()).first()
+        if clash or block:
+            raise RuleError(court_busy_message(location, clash, block))
     record = POSSession(session_type=kind, stadium_id=location.id if kind=='stadium' else None,
         table_id=location.id if kind=='table' else None, occupancy_key=key,
         customer_name=text_value(data.get('customer_name'), limit=100),
@@ -357,7 +568,7 @@ def start_session(data):
         reference=reference(), booking_id=booking.id if booking else None,
         pricing_snapshot=booking.pricing_snapshot if booking else rules(location if kind=='stadium' else None),
         venue_snapshot=venue_snapshot(), location_snapshot=location.name if location else 'Personal tab' if kind == 'person' else 'Quick sale',
-        cashier_id=actor(), business_day=business_date())
+        cashier_id=actor(), business_day=business_date(), client_id=client.id if client else None)
     db.session.add(record)
     db.session.flush()
     audit('Session started', record)
@@ -580,13 +791,20 @@ def balance(obj, currency=None):
     return max(0, bill_total(obj, currency) - paid)
 
 
-def settle_session(record, method):
+def settle_session(record, method, client_id=None):
     """Each currency's total is settled in that currency: one payment (or one
-    debt) per currency the bill holds. Nothing is converted."""
+    debt) per currency the bill holds. Nothing is converted. 'account' saves
+    the bill to a client account as that client's debt."""
     if record.status in ['paid','debt']:
         return
-    if record.status not in ['active','stopped'] or method not in ['cash','card','debt']:
+    if record.status not in ['active','stopped'] or method not in ['cash','card','debt','account']:
         raise RuleError('Choose a valid payment method.')
+    if method == 'account':
+        client = db.session.get(Client, integer(client_id, 1)) if client_id else record.client
+        if not client:
+            raise RuleError('Choose the client account to save this bill to.')
+        record.client_id = client.id
+        record.customer_name, record.customer_phone = client.name, client.phone
     if method == 'debt' and not record.customer_name:
         raise RuleError('A customer name is required for debt.')
     finish_play(record)
@@ -594,15 +812,19 @@ def settle_session(record, method):
     record.play_time_price, record.auto_discount = q['original'], q['auto_discount']
     record.manual_discount, record.total_amount = q['manual_discount'], q['total']
     record.manual_discount_usd, record.total_usd = q['usd']['manual_discount'], q['usd']['total']
-    record.status, record.payment_method, record.finalized_at = ('debt' if method=='debt' else 'paid'), method, now()
+    record.status, record.payment_method, record.finalized_at = ('debt' if method in ['debt','account'] else 'paid'), method, now()
     if record.booking:
         record.booking.status = 'completed'
+        if record.booking.regular:
+            # They have played: their next week is reserved now, so staff can tell them.
+            reserve_regular(record.booking.regular)
     for currency, total in q['totals'].items():
         if not total:
             continue
-        if method == 'debt':
+        if method in ['debt', 'account']:
             db.session.add(ManualDebt(name=record.customer_name, phone=record.customer_phone, amount=total, currency=currency,
-                paid_amount=0, date=business_date(), session_id=record.id, created_by=actor()))
+                paid_amount=0, date=business_date(), session_id=record.id, created_by=actor(),
+                client_id=record.client_id if method == 'account' else None))
         else:
             db.session.add(Payment(session_id=record.id, amount=total, currency=currency, method=method,
                 user_id=actor(), business_day=business_date()))
@@ -620,6 +842,102 @@ def collect_debt(debt, amount, method):
     debt.paid_amount += amount
     debt.status = 'paid' if debt.remaining == 0 else 'open'
     audit('Debt collected', debt, amount=amount, method=method, after={'currency': currency})
+
+
+def said(text, **values):
+    """A rule message in the staff member's language, with its values filled in."""
+    from flask import session, has_request_context
+    from app.i18n import translate
+    lang = session.get('lang', settings().default_language) if has_request_context() else 'en'
+    return translate(text, lang).format(**values)
+
+
+def create_client(data, client=None):
+    """Open (or edit) a client account. The name is all that is required."""
+    name = text_value(data.get('name'), True, 100)
+    phone = text_value(data.get('phone'), limit=20)
+    twin = Client.query.filter(db.func.lower(Client.name) == name.lower(), db.func.coalesce(Client.phone, '') == phone)
+    if client:
+        twin = twin.filter(Client.id != client.id)
+    if twin.first():
+        raise RuleError(said('{name} already has an account.', name=name))
+    before = dict(name=client.name, phone=client.phone, notes=client.notes) if client else None
+    if not client:
+        client = Client(created_by=actor(), created_at=now())
+        db.session.add(client)
+    client.name, client.phone, client.notes = name, phone or None, text_value(data.get('notes'), limit=1000) or None
+    db.session.flush()
+    audit('Client account updated' if before else 'Client account opened', client, before=before,
+          after=dict(name=client.name, phone=client.phone, notes=client.notes))
+    return client
+
+
+def client_owes(client):
+    """What a client still owes, per currency. Never added across currencies."""
+    owed = {c: 0 for c in CURRENCIES}
+    for d in client.debts:
+        if d.status == 'open':
+            owed[d.currency or 'IQD'] += d.remaining
+    return owed
+
+
+def client_pay(client, currency, amount, method):
+    """A client pays some or all of what they owe in one currency. The money
+    clears their oldest bills first."""
+    from app.money import check, parse
+    currency = check(currency)
+    owed = client_owes(client)[currency]
+    if not owed:
+        raise RuleError('Nothing is owed in this currency.')
+    amount = parse(amount, currency, 1, owed)
+    if method not in ['cash', 'card']:
+        raise RuleError('Choose a valid payment method.')
+    left = amount
+    for debt in sorted((d for d in client.debts if d.status == 'open' and (d.currency or 'IQD') == currency),
+                       key=lambda d: (d.date or date.min, d.id)):
+        take = min(left, debt.remaining)
+        if not take:
+            continue
+        db.session.add(Payment(debt_id=debt.id, session_id=debt.session_id, amount=take, currency=currency, method=method,
+                               user_id=actor(), business_day=business_date()))
+        debt.paid_amount += take
+        debt.status = 'paid' if debt.remaining == 0 else 'open'
+        left -= take
+        if not left:
+            break
+    audit('Client account paid', client, amount=amount, method=method,
+          after={'currency': currency, 'still_owed': owed - amount})
+    return owed - amount
+
+
+def client_charge(client, data):
+    """Put an amount on a client's account without a bill, e.g. an old balance."""
+    from app.money import check, parse
+    code = check(data.get('currency', 'IQD'))
+    debt = ManualDebt(name=client.name, phone=client.phone, client_id=client.id, amount=parse(data.get('amount'), code, 1),
+                      currency=code, paid_amount=0, note=text_value(data.get('note'), limit=500) or None,
+                      date=business_date(), created_by=actor())
+    db.session.add(debt)
+    db.session.flush()
+    audit('Manual debt created', debt, after={'client': client.name, 'currency': code})
+    return debt
+
+
+def delete_client(client):
+    """Remove the account. Not while they still owe money or have an open tab:
+    the bills would lose their owner."""
+    from app.money import fmt
+    owed = client_owes(client)
+    if any(owed.values()):
+        raise RuleError(said('{name} still owes {amount}. Take the payment first, then delete the account.',
+                             name=client.name, amount=' + '.join(fmt(v, c) for c, v in owed.items() if v)))
+    if any(s.status in ['active', 'stopped'] for s in client.sessions):
+        raise RuleError(said('{name} has an open tab. Close it first.', name=client.name))
+    audit('Record deleted', client, after={'name': client.name})
+    # Past bills and debts keep their copied name and phone.
+    ManualDebt.query.filter_by(client_id=client.id).update({'client_id': None})
+    POSSession.query.filter_by(client_id=client.id).update({'client_id': None})
+    db.session.delete(client)
 
 
 def refund_bill(obj, reason, restock=False):

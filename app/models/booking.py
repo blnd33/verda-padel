@@ -12,7 +12,9 @@ class Booking(db.Model):
     pricing_snapshot = db.Column(db.JSON)
     previous_status = db.Column(db.String(20))
     archived = db.Column(db.Boolean, default=False, server_default='0', nullable=False)
-    __table_args__ = (db.Index('ix_booking_court_interval', 'stadium_id', 'starts_at', 'ends_at'),)
+    __table_args__ = (db.Index('ix_booking_court_interval', 'stadium_id', 'starts_at', 'ends_at'),
+                      # A weekly regular has at most one game per business day.
+                      db.UniqueConstraint('regular_id', 'business_day', name='uq_booking_regular_day'))
 
     id = db.Column(db.Integer, primary_key=True)
     stadium_id = db.Column(db.Integer, db.ForeignKey('stadium.id'), nullable=False)
@@ -49,6 +51,8 @@ class Booking(db.Model):
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     confirmed_at = db.Column(db.DateTime)
+    # Weekly regular series this booking belongs to, if any.
+    regular_id = db.Column(db.Integer, db.ForeignKey('regular_booking.id'), index=True)
     # Staff dismissed the "it's their time" reminder; it is not shown again.
     start_prompt_declined_at = db.Column(db.DateTime)
     start_prompt_declined_by = db.Column(db.Integer, db.ForeignKey('user.id'))

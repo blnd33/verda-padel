@@ -231,3 +231,128 @@ a.tab-card:hover{border-color:#6eaa89;box-shadow:0 10px 26px #173f2e14;transform
 .today-chip{display:inline-flex;align-items:center;gap:8px}
 .today-count{min-width:22px;height:22px;padding:0 6px;border-radius:99px;display:grid;place-items:center;font-size:11.5px;font-weight:700;background:#e0f1e8;color:var(--green-dark)}
 .btn-primary .today-count{background:#ffffff33;color:#fff}
+
+/* ---------- Weekly regular bookings ---------- */
+.regulars-layout{align-items:start}
+.regular-row{display:grid;grid-template-columns:150px minmax(0,1fr) minmax(0,1.2fr);gap:8px 18px;padding:16px 0;border-bottom:1px solid var(--line);align-items:start}
+.regular-row:last-of-type{border-bottom:0}
+.regular-row.is-missed{background:linear-gradient(90deg,#fff4e0,transparent 70%);border-radius:10px;padding-inline:10px}
+.regular-when{display:flex;flex-direction:column;gap:2px}
+.regular-when strong{font-size:15px;color:var(--green-dark)}
+.regular-when span{font-weight:700;font-variant-numeric:tabular-nums}
+.regular-when small,.regular-who small{color:var(--muted);font-size:11px}
+.regular-who{display:flex;flex-direction:column;gap:2px;min-width:0}
+.regular-who strong{overflow-wrap:anywhere}
+.regular-who a{font-size:12.5px;color:var(--green);width:fit-content}
+.regular-next{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.regular-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.regular-next a{font-weight:600;color:var(--ink)}
+.regular-last{font-size:11.5px}
+.regular-last.is-played{color:var(--green-dark)}
+.regular-last.is-missed{color:#a15c00;font-weight:600}
+.regular-warn{font-size:11.5px;color:#a15c00}
+.regular-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 18px}
+.regular-actions .bill-details summary{padding:6px 0}
+.regular-actions form{display:grid;gap:8px;max-width:360px}
+.regular-ended{margin-top:14px}
+.regular-ended summary{cursor:pointer;color:var(--green);font-size:12.5px;font-weight:600;padding:8px 0}
+.weekday-picker{border:0;padding:0;margin:14px 0 4px;display:flex;flex-wrap:wrap;gap:6px}
+.weekday-picker legend{font-size:12px;font-weight:600;margin-bottom:6px;padding:0}
+.weekday-picker label{position:relative;cursor:pointer}
+.weekday-picker input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.weekday-picker span{display:inline-flex;min-height:38px;align-items:center;padding:0 12px;border:1px solid var(--line);border-radius:99px;font-size:12.5px;background:#fff}
+.weekday-picker input:checked+span{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+.weekday-picker input:focus-visible+span{outline:2px solid var(--green);outline-offset:2px}
+.weekly-tag{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--green-dark);background:#e0f1e8;border-radius:99px;padding:1px 7px;margin-inline-start:4px}
+.repeat-weekly{margin:10px 0 16px}
+.regular-notice{margin:10px 0 14px}
+@media(max-width:900px){.regular-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.regular-next{grid-column:1/-1}}
+
+/* ---------- Receipt: bold, pure black, sized for thermal printers ----------
+   Thermal heads fade thin or grey text, so every line is solid black and heavy. */
+.receipt-paper,.receipt-paper *{color:#000!important}
+.receipt-paper{font-family:Arial,'Segoe UI',Tahoma,sans-serif;font-size:12px;font-weight:600;line-height:1.35}
+.receipt-paper h1{font-size:22px;font-weight:900}
+.receipt-paper h2{font-size:15px;font-weight:800}
+.receipt-paper p{font-size:11.5px;font-weight:600}
+.receipt-paper dl>div{font-size:12px;font-weight:600;border-bottom:1px solid #000!important}
+.receipt-paper dt{font-weight:600}
+.receipt-paper dd{font-weight:800}
+.receipt-paper table{font-size:12px;border-collapse:collapse}
+.receipt-paper th{font-size:11px;font-weight:800;background:#fff!important;border-bottom:2px solid #000!important;letter-spacing:.02em}
+.receipt-paper td{font-size:11.5px;font-weight:700;border-bottom:1px solid #000!important}
+.receipt-paper .total-line{border-top:2px solid #000;border-bottom:2px solid #000;padding:6px 0}
+.receipt-paper .total-line span{font-weight:800;font-size:13px}
+.receipt-paper .total-line strong{font-size:21px;font-weight:900}
+.receipt-paper .status{background:#fff!important;border:1.5px solid #000;font-weight:800}
+.receipt-note{font-size:10px!important;font-weight:700;opacity:1!important}
+.receipt-side-title{font-size:12px;font-weight:900}
+.receipt-side+.receipt-side{border-top:2px dashed #000}
+.receipt-foot{font-size:11px;font-weight:700;border-top:2px dashed #000!important}
+@media print{.receipt-paper{font-size:12px}.receipt-paper *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.row-actions-cell{white-space:nowrap}
+.row-actions-cell .row-delete{display:inline;margin-inline-start:14px}
+.text-button.danger-link{color:var(--danger);padding:0;font-size:13px}
+.text-button.danger-link:hover{text-decoration:underline;color:var(--danger)}
+.delete-record summary{color:var(--danger)}
+
+/* ---------- Client accounts ---------- */
+.client-tag{display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--green-dark);background:#e0f1e8;border-radius:99px;padding:1px 8px;vertical-align:middle}
+.session-timer .client-tag{background:#ffffff26;color:#fff}
+.tab-avatar.is-client{background:#fff4d6;color:#8a6100;border:1px solid #f0dca4}
+.tab-client .text-link{font-size:12.5px;align-self:center}
+.clients-metrics{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.client-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;align-content:start}
+.client-card{display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;border-inline-start:4px solid var(--line)}
+.client-card.is-owing{border-inline-start-color:#c98a00}
+.client-main{display:flex;align-items:center;gap:12px;color:var(--ink)}
+.client-main h3{margin:0;font-size:16.5px}
+.client-main small{color:var(--muted);font-size:12.5px}
+.client-owes{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.client-owes>span:first-child{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:650;color:var(--muted)}
+.owed-money{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 12px;font-weight:700;font-size:16px}
+.client-card.is-owing .owed-money,.client-pay h3 bdi{color:#8a5a00}
+.owed-none{font-size:12.5px;font-weight:600;color:var(--green-dark)}
+.client-last{color:var(--muted);font-size:12px}
+.client-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
+.client-actions form{display:contents}
+.client-hero{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 28px;background:var(--green);color:#fff;border-radius:14px;padding:20px 22px;margin-bottom:20px}
+.client-hero.is-owing{background:linear-gradient(120deg,var(--green-deep),var(--green))}
+.client-who{display:flex;align-items:center;gap:14px;min-width:0}
+.client-who h2{color:#fff;margin:0;font-size:clamp(24px,3vw,34px)}
+.client-who p{color:#ffffffcc;margin:2px 0 0;font-size:13px}
+.client-balance{display:flex;flex-direction:column;gap:2px}
+.client-balance>span:first-child{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#ffffffb3;font-weight:650}
+.client-balance .owed-money{font-size:24px;justify-content:flex-start;color:#fff}
+.client-balance .owed-none{color:#fff;font-size:15px}
+.client-hero-actions form{margin:0}
+.client-pay-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:12px}
+.client-pay-form{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.client-pay-form h3{margin:0;font-size:15px}
+.client-sums{display:flex;flex-wrap:wrap;gap:8px 30px;margin:0 0 10px}
+.client-sums div{display:flex;gap:10px;align-items:baseline}
+.client-sums dt{font-size:12px;color:var(--muted)}
+.client-sums dd{margin:0}
+.client-bill{gap:12px}
+.client-bill>div{flex:1;min-width:0}
+.client-bill-amount{display:flex;flex-direction:column;align-items:flex-end;font-weight:700}
+.client-bill-amount small{font-weight:500;color:#8a5a00;font-size:11.5px}
+.client-bill.is-paid .client-bill-amount{color:var(--muted)}
+.client-edit,.delete-record.panel{margin-top:14px}
+.client-edit summary,.delete-record.panel summary{cursor:pointer;font-weight:600;padding:2px 0}
+.client-edit form,.delete-record.panel form{display:grid;gap:10px;margin-top:12px}
+/* Settling a bill: tap one choice */
+.settle-choices{border:0;padding:0;margin:14px 0 12px;display:grid;gap:8px}
+.settle-choices legend{font-size:12px;font-weight:650;margin-bottom:6px;padding:0}
+.settle-choice{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;cursor:pointer;transition:border-color .15s,background .15s}
+.settle-choice input[type=radio]{margin:3px 0 0;accent-color:var(--green);flex:none;width:17px;height:17px}
+.settle-text{display:grid;gap:2px;min-width:0;flex:1}
+.settle-text strong{font-size:14px}
+.settle-text small{font-size:12px;color:var(--muted);line-height:1.45}
+.settle-text select{margin-top:6px;width:100%}
+.settle-choice:has(input:checked){border-color:var(--green);background:#eef7f1;box-shadow:inset 0 0 0 1px var(--green)}
+.settle-choice.is-account:has(input:checked){border-color:#c98a00;background:#fffaf0;box-shadow:inset 0 0 0 1px #c98a00}
+.settle-owes{color:#8a5a00!important;font-weight:600}
+.settle-owes .owed-money{font-size:12.5px;gap:2px 8px}
+.clients-filter .search-field{flex:1 1 240px}
+.clients-filter select{width:auto;flex:0 0 auto}

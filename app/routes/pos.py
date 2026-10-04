@@ -1,6 +1,6 @@
 from flask import Blueprint, request, render_template, redirect, abort, jsonify
 from app import db
-from app.models import Stadium,Table,Product,Category,POSSession,POSOrderItem,POSOrder,Booking
+from app.models import Stadium,Table,Product,Category,POSSession,POSOrderItem,POSOrder,Booking,Client
 from app.security import require, permitted
 from app.services import core
 from app import money as currency
@@ -15,6 +15,7 @@ def index():
         record=core.start_session(request.form)
         return redirect(f'/pos/session/{record.id}')
     sweep()
+    clients=client_choices()
     sessions=POSSession.query.filter(POSSession.status.in_(['active','stopped'])).all()
     courts=Stadium.query.filter_by(is_active=True,show_in_pos=True).all()
     return render_template('pos/index.html',title='Cashier',courts=courts,due=core.due_bookings(),
@@ -22,14 +23,25 @@ def index():
         closed_tabs=POSSession.query.filter(POSSession.session_type=='person',POSSession.business_day==core.business_date(),
             POSSession.finalized_at.isnot(None)).order_by(POSSession.finalized_at.desc()).limit(30).all(),
         sessions=sessions,occupied={s.occupancy_key:s for s in sessions if s.occupancy_key},
-        rate_bands={c.id:court_rate_bands(c) for c in courts},venue_clock=core.local(core.now()),
+        rate_bands={c.id:court_rate_bands(c) for c in courts},venue_clock=core.local(core.now()),clients=clients,
         bookings=Booking.query.filter_by(status='confirmed').order_by(Booking.starts_at).limit(50).all())
+
+def client_choices():
+    """Client accounts the cashier can put a bill on, by name."""
+    return Client.query.order_by(Client.name).all() if permitted('clients') else []
+
+def check_settle(method):
+    if method=='debt' and not permitted('debts'):
+        abort(403)
+    if method=='account' and not permitted('clients'):
+        abort(403)
 
 def sweep():
     """Stop booked sessions whose time is over. Runs on cashier page loads and on
     the staff screens' regular check, since there is no background worker."""
     stopped=core.stop_finished_bookings()
-    if stopped:
+    reserved=core.keep_regulars_reserved()
+    if stopped or reserved:
         db.session.commit()
     return stopped
 
@@ -44,7 +56,8 @@ def due_api():
     return jsonify(
         due=[dict(id=b.id,name=b.customer_name,phone=b.customer_phone,court=b.stadium.name if b.stadium else '',
             starts=clock_of(core.local(b.starts_at),lang),ends=clock_of(core.local(b.ends_at),lang),hours=b.duration_hours,
-            title=t("It's {name}'s time").format(name=b.customer_name),
+            regular=bool(b.regular_id),
+            title=(t("It's {name}'s time · weekly regular") if b.regular_id else t("It's {name}'s time")).format(name=b.customer_name),
             when=t('{court} · {starts} – {ends} ({hours} h)').format(court=b.stadium.name if b.stadium else '',
                 starts=clock_of(core.local(b.starts_at),lang),ends=clock_of(core.local(b.ends_at),lang),hours=b.duration_hours))
             for b in core.due_bookings()],
@@ -129,9 +142,8 @@ def session_detail(session_id):
             core.audit('Discount applied',record,record.discount_note,after={'kind':kind,'value':value,'currency':code})
         elif action=='settle':
             method=request.form.get('method')
-            if method=='debt' and not permitted('debts'):
-                abort(403)
-            core.settle_session(record,method)
+            check_settle(method)
+            core.settle_session(record,method,request.form.get('client_id'))
             return redirect(f'/pos/receipt/{record.id}') if permitted('receipts') else redirect('/pos')
         elif action=='customer':
             if record.status not in ['active','stopped']:
@@ -173,7 +185,8 @@ def session_detail(session_id):
         return redirect(f'/pos/session/{record.id}')
     sweep()
     return render_template('pos/session.html',title='Current bill',record=record,quote=core.session_quote(record),
-        products=core.product_query('pos').all(),categories=Category.query.filter_by(is_active=True,show_on_pos=True).all())
+        products=core.product_query('pos').all(),categories=Category.query.filter_by(is_active=True,show_on_pos=True).all(),
+        clients=client_choices(),owes=core.client_owes(record.client) if record.client else None)
 
 @pos.route('/quick',methods=['GET','POST'])
 @require('pos')
@@ -187,8 +200,7 @@ def quick():
         for p,q in lines:
             core.add_item(record,p.id,q)
         method=request.form.get('method')
-        if method=='debt' and not permitted('debts'):
-            abort(403)
+        check_settle(method)
         kind=request.form.get('discount_kind')
         code=currency.check(request.form.get('discount_currency','IQD')) if kind=='fixed' else 'IQD'
         raw=str(request.form.get('discount','') or '0').strip()
@@ -202,9 +214,10 @@ def quick():
             record.discount_kind,record.discount_value,record.discount_currency=kind,value,code
             record.discount_note=core.text_value(request.form.get('reason'),True,200)
             core.audit('Quick sale discount',record,record.discount_note)
-        core.settle_session(record,method)
+        core.settle_session(record,method,request.form.get('client_id'))
         return redirect(f'/pos/receipt/{record.id}') if permitted('receipts') else redirect('/pos')
-    return render_template('pos/quick.html',title='Quick sale',products=core.product_query('pos').all(),categories=Category.query.filter_by(is_active=True,show_on_pos=True).all())
+    return render_template('pos/quick.html',title='Quick sale',products=core.product_query('pos').all(),categories=Category.query.filter_by(is_active=True,show_on_pos=True).all(),
+        clients=client_choices())
 
 @pos.get('/receipt/<int:session_id>')
 @require('receipts')

@@ -34,6 +34,9 @@ class Product(db.Model):
     barcode = db.Column(db.String(50), unique=True, nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Deleted from the catalog. Products with sales history are kept (hidden
+    # everywhere) so old receipts and reports stay correct; unsold ones are removed.
+    deleted_at = db.Column(db.DateTime)
 
     category = db.relationship('Category', back_populates='products')
 

@@ -7,6 +7,8 @@ class ManualDebt(db.Model):
     session_id = db.Column(db.Integer, db.ForeignKey('pos_session.id'))
     pos_session = db.relationship('POSSession')
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    # Set when the debt sits on a client account; the name/phone copy stays for history.
+    client_id = db.Column(db.Integer, db.ForeignKey('client.id'), index=True)
     # A bill on debt owes each currency separately, so one debt per bill per currency.
     __table_args__ = (db.CheckConstraint('amount >= 0 AND paid_amount >= 0 AND paid_amount <= amount', name='ck_debt_balance'),
                       db.UniqueConstraint('session_id', 'currency', name='uq_manual_debts_session_currency'))

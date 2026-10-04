@@ -25,7 +25,7 @@ def test_public_and_staff_screens(app,staff):
         '/admin/bookings','/admin/bookings/new','/admin/orders','/admin/products','/admin/categories',
         '/admin/inventory','/admin/courts','/admin/tables','/admin/staff','/admin/expenses','/admin/debts',
         '/admin/reports','/admin/archive','/admin/activity','/admin/notifications','/admin/barcodes',
-        '/admin/barcodes?preview=1&ids=1&price=1','/admin/blocks','/admin/settings','/pos','/pos/quick']:
+        '/admin/barcodes?preview=1&ids=1&price=1','/admin/blocks','/admin/settings','/admin/clients','/pos','/pos/quick']:
         result=staff.get(url)
         assert result.status_code in [200,302],(url,result.status_code,result.get_data(as_text=True))
         if result.status_code==200:
@@ -578,7 +578,7 @@ def test_cashier_role_without_email(app,staff):
     with app.app_context():
         u=User.query.filter_by(username='till-one').one()
         assert u.email is None and u.role=='cashier' and not u.is_admin
-        assert sorted(u.permissions)==['pos','receipts'] and u.allowed('pos') and not u.allowed('reports')
+        assert sorted(u.permissions)==['clients','pos','receipts'] and u.allowed('pos') and not u.allowed('reports')
         from app.security import landing
         assert landing(u)=='/pos'
     assert post(staff,'/admin/staff',dict(username='x',password='Long-enough-pass-1',role='manager',is_active='on')).status_code==422
@@ -610,3 +610,190 @@ def test_settings_keeps_daytime_rate_when_saved(app,staff):
     assert post(staff,'/admin/settings',{k:('' if v is None else v) for k,v in form.items()}).status_code==302
     with app.app_context():
         assert core.settings().price_per_hour==30000
+
+def regular_form(app,days_ahead=2,hour=20,**extra):
+    with app.app_context():
+        day=core.business_date()+timedelta(days=days_ahead)
+    return day,dict(action='create',customer_name='Weekly Blnd',customer_phone='+9647000000011',stadium_id=1,
+        hour=hour,duration=2,starts_on=str(core.business_date() if False else day),weekday=[day.weekday()],**extra)
+
+def test_regular_reserves_next_game_and_blocks_the_slot(app,staff,client):
+    day,form=regular_form(app)
+    assert post(staff,'/admin/regulars',form).status_code==302
+    with app.app_context():
+        s=RegularBooking.query.one();b=Booking.query.filter_by(regular_id=s.id).one()
+        assert (b.status,b.source,b.business_day,b.duration_hours)==('confirmed','regular',day,2)
+    # Nobody else can book that slot online.
+    assert post(client,'/booking/',{**booking_data(app),'date':str(day),'hour':20,'duration':1}).status_code==422
+    page=staff.get('/admin/regulars').get_data(as_text=True)
+    assert 'Weekly Blnd' in page and 'Next game' in page
+
+def test_regular_twice_a_week_makes_two_slots(app,staff):
+    day,form=regular_form(app)
+    form['weekday']=[day.weekday(),(day.weekday()+3)%7]
+    assert post(staff,'/admin/regulars',form).status_code==302
+    with app.app_context():
+        assert RegularBooking.query.count()==2 and Booking.query.filter(Booking.regular_id.isnot(None)).count()==2
+
+def test_after_playing_next_week_is_reserved(app,staff):
+    day,form=regular_form(app)
+    post(staff,'/admin/regulars',form)
+    with app.app_context():
+        b=Booking.query.one();b.status='completed';db.session.commit()
+    staff.get('/admin/regulars')
+    with app.app_context():
+        days=sorted(x.business_day for x in Booking.query.all())
+        assert days==[day,day+timedelta(days=7)]
+        assert core.regular_state(RegularBooking.query.one())['result']=='played'
+
+def test_cancel_one_week_then_stop(app,staff):
+    day,form=regular_form(app)
+    post(staff,'/admin/regulars',form)
+    with app.app_context():
+        sid=RegularBooking.query.one().id
+    assert post(staff,'/admin/regulars',dict(action='cancel_week',id=sid,reason='Travelling')).status_code==302
+    with app.app_context():
+        rows={b.business_day:b.status for b in Booking.query.all()}
+        assert rows=={day:'cancelled',day+timedelta(days=7):'confirmed'}
+    assert post(staff,'/admin/regulars',dict(action='stop',id=sid,reason='Did not come')).status_code==302
+    staff.get('/admin/regulars')
+    with app.app_context():
+        s=db.session.get(RegularBooking,sid)
+        assert not s.active and s.end_reason=='Did not come'
+        assert Booking.query.filter_by(status='confirmed').count()==0 and Booking.query.count()==2
+    assert 'stopped the weekly regular booking' in staff.get('/admin/activity').get_data(as_text=True)
+
+def test_repeat_every_week_from_a_booking_and_settle_reserves_next(app,staff):
+    # Open around the clock so the slot is valid whatever time the test runs.
+    with app.app_context():
+        core.settings().opening_hour=core.settings().closing_hour=0;db.session.commit()
+    bid=make_booking(app,-5,hours=2,name='Sara')
+    assert post(staff,f'/admin/bookings/{bid}',dict(action='repeat_weekly')).status_code==302
+    with app.app_context():
+        b=db.session.get(Booking,bid);s=RegularBooking.query.one()
+        assert b.regular_id==s.id and s.weekday==b.business_day.weekday() and s.duration_hours==2
+        first_day=b.business_day
+    r=json_post(staff,f'/pos/bookings/{bid}/start')
+    assert r.status_code==200
+    post(staff,r.json['url'],dict(action='settle',method='cash'))
+    with app.app_context():
+        nxt=Booking.query.filter(Booking.regular_id.isnot(None),Booking.status=='confirmed').one()
+        assert nxt.business_day==first_day+timedelta(days=7) and nxt.customer_name=='Sara'
+
+def test_regular_week_already_taken_is_flagged_and_skipped(app,staff,client):
+    day,form=regular_form(app)
+    assert post(client,'/booking/',{**booking_data(app),'date':str(day),'hour':20,'duration':1}).status_code==302
+    assert post(staff,'/admin/regulars',form).status_code==302
+    with app.app_context():
+        s=RegularBooking.query.one()
+        assert s.conflict_on==day
+        assert Booking.query.filter_by(regular_id=s.id).one().business_day==day+timedelta(days=7)
+
+def test_walk_in_refusal_names_the_booking(app,staff):
+    make_booking(app,-10,name='Blnd Now')
+    r=post(staff,'/pos',dict(session_type='stadium',location_id=1))
+    html=r.get_data(as_text=True)
+    assert r.status_code==422 and 'booked right now for Blnd Now' in html and 'Bookings starting now' in html
+    with app.app_context():
+        Booking.query.delete();db.session.commit()
+    make_booking(app,15,name='Soon Guest')
+    html=post(staff,'/pos',dict(session_type='stadium',location_id=1)).get_data(as_text=True)
+    assert 'booked for Soon Guest at' in html and 'minimum session' in html
+
+def test_delete_unsold_product_removes_it(app,staff):
+    post(staff,'/admin/products',dict(name_en='Never sold',currency='IQD',cost_price='100',price='500',stock=3,track_stock='on',is_active='on',show_in_pos='on',low_stock_threshold=1))
+    with app.app_context():
+        pid=Product.query.filter_by(name_en='Never sold').one().id
+    r=post(staff,f'/admin/products/{pid}/edit',dict(action='delete'))
+    assert r.status_code==302
+    with app.app_context():
+        assert db.session.get(Product,pid) is None and StockMovement.query.filter_by(product_id=pid).count()==0
+    assert 'deleted the product “Never sold”' in staff.get('/admin/activity').get_data(as_text=True)
+
+def test_delete_sold_product_keeps_history(app,staff):
+    assert post(staff,'/pos/quick',dict(product_id=[1],quantity=[1],discount=0,method='cash')).status_code==302
+    assert post(staff,'/admin/products/1/edit',dict(action='delete')).status_code==302
+    with app.app_context():
+        p=db.session.get(Product,1)
+        assert p.deleted_at and not p.is_active and p.barcode is None
+    assert 'Test racket' not in staff.get('/admin/products').get_data(as_text=True)
+    assert 'Test racket' not in staff.get('/pos/quick').get_data(as_text=True)
+    assert 'Test racket' in staff.get('/pos/receipt/1').get_data(as_text=True)
+    with app.app_context():
+        assert core.reports(core.business_date(),core.business_date())['money']['IQD']['sales']==12000
+
+def test_delete_category_keeps_its_products(app,staff):
+    assert post(staff,'/admin/categories/1/edit',dict(action='delete')).status_code==302
+    with app.app_context():
+        assert db.session.get(Category,1) is None and db.session.get(Product,1).category_id is None
+    assert 'Test racket' in staff.get('/admin/products').get_data(as_text=True)
+
+def open_client(app,staff,name='Daily Ahmed',phone='0750 111 2222'):
+    r=post(staff,'/admin/clients',dict(name=name,phone=phone,notes='Plays every evening'))
+    assert r.status_code==302,r.get_data(as_text=True)[:300]
+    with app.app_context():
+        return Client.query.filter_by(name=name).one().id
+
+def test_client_account_saves_bills_and_pays_later(app,staff):
+    cid=open_client(app,staff)
+    assert post(staff,'/admin/clients',dict(name='daily ahmed',phone='0750 111 2222')).status_code==422
+    for visit in range(2):
+        tab=post(staff,'/pos',dict(session_type='person',client_id=cid)).location
+        # Picking their name again reopens the same tab instead of a second one.
+        assert post(staff,'/pos',dict(session_type='person',client_id=cid)).location==tab
+        post(staff,tab,dict(action='add',product_id=1,quantity=1))
+        assert 'Save to Daily Ahmed’s account' in staff.get(tab).get_data(as_text=True)
+        assert post(staff,tab,dict(action='settle',method='account')).status_code==302
+    with app.app_context():
+        c=db.session.get(Client,cid)
+        assert core.client_owes(c)=={'IQD':24000,'USD':0}
+        assert all(d.client_id==cid for d in ManualDebt.query.all())
+        bill=POSSession.query.filter_by(client_id=cid).first()
+        assert bill.status=='debt' and bill.payment_method=='account' and bill.customer_name=='Daily Ahmed'
+        bill_id=bill.id
+    assert 'Saved to account' in staff.get(f'/pos/receipt/{bill_id}').get_data(as_text=True)
+    page=staff.get('/admin/clients').get_data(as_text=True)
+    assert 'Daily Ahmed' in page and '24,000' in page
+    # Paying part clears the oldest bill first; paying more than owed is refused.
+    assert post(staff,f'/admin/clients/{cid}',dict(action='pay',currency='IQD',amount='15000',method='cash')).status_code==302
+    assert post(staff,f'/admin/clients/{cid}',dict(action='pay',currency='IQD',amount='10000',method='cash')).status_code==422
+    with app.app_context():
+        first,second=ManualDebt.query.order_by(ManualDebt.id).all()
+        assert first.status=='paid' and second.remaining==9000
+        assert core.client_owes(db.session.get(Client,cid))['IQD']==9000
+        assert core.reports(core.business_date(),core.business_date())['money']['IQD']['collected']==15000
+    # The name stays until deleted, and cannot be deleted while money is owed.
+    assert post(staff,f'/admin/clients/{cid}',dict(action='delete')).status_code==422
+    post(staff,f'/admin/clients/{cid}',dict(action='pay',currency='IQD',amount='9000',method='card'))
+    assert 'Nothing owed' in staff.get('/admin/clients').get_data(as_text=True)
+    assert post(staff,f'/admin/clients/{cid}',dict(action='delete')).location.endswith('/admin/clients')
+    with app.app_context():
+        assert db.session.get(Client,cid) is None
+        assert ManualDebt.query.filter(ManualDebt.client_id.isnot(None)).count()==0
+        assert ManualDebt.query.first().name=='Daily Ahmed'
+    assert staff.get(f'/pos/receipt/{bill_id}').status_code==200
+    feed=staff.get('/admin/activity').get_data(as_text=True)
+    assert 'opened a client account for Daily Ahmed' in feed and 'account' in feed
+
+def test_one_time_customer_pays_now_and_others_go_on_an_account(app,staff):
+    cid=open_client(app,staff,'Sara regular','')
+    # A client can still pay on the spot: nothing goes on the account.
+    tab=post(staff,'/pos',dict(session_type='person',client_id=cid)).location
+    post(staff,tab,dict(action='add',product_id=1,quantity=1))
+    post(staff,tab,dict(action='settle',method='cash'))
+    with app.app_context():
+        assert ManualDebt.query.count()==0
+    # A walk-in tab or a quick sale can be saved to an account chosen at the end.
+    walk_in=start(staff,'person')
+    post(staff,walk_in,dict(action='add',product_id=1,quantity=1))
+    assert post(staff,walk_in,dict(action='settle',method='account')).status_code==422
+    assert post(staff,walk_in,dict(action='settle',method='account',client_id=cid)).status_code==302
+    assert post(staff,'/pos/quick',dict(product_id=[1],quantity=[2],discount=0,method='account',client_id=cid)).status_code==302
+    with app.app_context():
+        assert core.client_owes(db.session.get(Client,cid))['IQD']==36000
+    page=staff.get(f'/admin/clients/{cid}').get_data(as_text=True)
+    assert 'Sara regular' in page and '36,000' in page
+    assert post(staff,f'/admin/clients/{cid}',dict(action='charge',currency='USD',amount='5',note='Old balance')).status_code==302
+    with app.app_context():
+        assert core.client_owes(db.session.get(Client,cid))=={'IQD':36000,'USD':500}
+

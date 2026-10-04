@@ -3,16 +3,18 @@ from flask import abort, redirect, url_for
 from flask_login import current_user
 
 PERMISSIONS = ['dashboard','bookings','orders','products','inventory','courts','tables',
-               'pos','discounts','cancellations','debts','expenses','reports','receipts','settings','staff']
+               'pos','clients','discounts','cancellations','debts','expenses','reports','receipts','settings','staff']
 
 NAVIGATION = [
     ('Today','dashboard','Overview','/admin'),
     ('Today','bookings','Pending bookings','/admin/bookings?status=pending'),
     ('Today','bookings','Bookings','/admin/bookings'),
+    ('Today','bookings','Regular bookings','/admin/regulars'),
     ('Today','cancellations','Cancellations','/admin/bookings?status=pending_cancel'),
     ('Today','orders','Website orders','/admin/orders'),
     ('Selling','pos','Cashier','/pos'),
     ('Selling','pos','Quick sale','/pos/quick'),
+    ('Selling','clients','Clients','/admin/clients'),
     ('Selling','receipts','Receipt archive','/admin/archive'),
     ('Catalog','products','Products','/admin/products'),
     ('Catalog','products','Categories','/admin/categories'),

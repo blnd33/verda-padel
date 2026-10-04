@@ -25,6 +25,8 @@ class POSSession(db.Model):
     finalized_at = db.Column(db.DateTime, index=True)
     cashier_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     cashier = db.relationship('User')
+    # The client account this bill belongs to, if any.
+    client_id = db.Column(db.Integer, db.ForeignKey('client.id'), index=True)
     stock_restored = db.Column(db.Boolean, default=False, server_default='0', nullable=False)
     voided = db.Column(db.Boolean, default=False, server_default='0', nullable=False)
 

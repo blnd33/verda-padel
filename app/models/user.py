@@ -18,8 +18,8 @@ class User(db.Model, UserMixin):
     ROLE_ADMIN = "admin"
     ROLE_CASHIER = "cashier"
     ROLES = (ROLE_CASHIER, ROLE_ADMIN, ROLE_SUPER_ADMIN)
-    # A new cashier starts with the till and its receipts; more can be ticked.
-    CASHIER_PERMISSIONS = ['pos', 'receipts']
+    # A new cashier starts with the till, client accounts and receipts; more can be ticked.
+    CASHIER_PERMISSIONS = ['pos', 'clients', 'receipts']
 
     id = db.Column(db.Integer, primary_key=True)
 

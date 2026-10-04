@@ -5,6 +5,8 @@ from .settings import Settings
 from .category import Category
 from .product import Product
 from .booking import Booking
+from .regular_booking import RegularBooking
+from .client import Client
 from .order import Order, OrderItem
 from .pos_session import POSSession
 from .pos_order import POSOrder, POSOrderItem

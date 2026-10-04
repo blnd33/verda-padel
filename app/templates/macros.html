@@ -15,3 +15,4 @@
 {% macro dual(values) %}<span class="dual-money">{% for code in CURRENCIES %}<span class="dual-{{ code|lower }}{{ ' is-zero' if not values.get(code) }}"><bdi>{{ values.get(code,0)|money(code) }}</bdi></span>{% endfor %}</span>{% endmacro %}
 
 {% macro currency_select(name='currency',label='Currency',value='IQD') %}<label class="field"><span>{{ t(label) }}</span><select name="{{ name }}" data-currency-select>{% for code in CURRENCIES %}<option value="{{ code }}" {% if value==code %}selected{% endif %}>{{ t(CURRENCY_LABELS[code]) }}</option>{% endfor %}</select></label>{% endmacro %}
+{% macro owed(values) %}{% set ns = namespace(any=false) %}<span class="owed-money">{% for code in CURRENCIES if values.get(code) %}{% set ns.any = true %}<bdi class="owed-{{ code|lower }}">{{ values[code]|money(code) }}</bdi>{% endfor %}{% if not ns.any %}<span class="owed-none">{{ t('Nothing owed') }}</span>{% endif %}</span>{% endmacro %}

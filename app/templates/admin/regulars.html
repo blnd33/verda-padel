@@ -1,0 +1,41 @@
+{% extends 'admin/base.html' %}{% from 'macros.html' import token,field,hour_select,badge,empty with context %}
+{% set weekdays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
+{% block subtitle %}<p>{{ t('Players who come every week keep their slot. Their next game is always reserved; when they play, next week is booked for them.') }}</p>{% endblock %}
+{% block workspace %}<div class="management-layout regulars-layout">
+<section class="panel">
+  <div class="panel-heading"><h2>{{ t('Weekly regulars') }}</h2><span class="due-count">{{ active|length }}</span></div>
+  {% for s in active %}{% set st = states[s.id] %}
+  <article class="regular-row{{ ' is-missed' if st.result=='missed' }}">
+    <div class="regular-when"><strong>{{ t(weekdays[s.weekday]) }}</strong><span><bdi dir="ltr">{{ clock(s.hour) }} – {{ clock((s.hour + s.duration_hours) % 24) }}</bdi></span><small>{{ s.duration_hours }} {{ t('h') }} · {{ s.stadium.name }}</small></div>
+    <div class="regular-who"><strong>{{ s.customer_name }}</strong><a href="tel:{{ s.customer_phone }}" dir="ltr">{{ s.customer_phone }}</a>{% if s.notes %}<small>{{ s.notes }}</small>{% endif %}</div>
+    <div class="regular-next">
+      {% if st.upcoming %}<span class="regular-label">{{ t('Next game') }}</span><a href="/admin/bookings/{{ st.upcoming.id }}"><bdi>{{ st.upcoming.starts_at|venue_time }}</bdi></a>{{ badge(st.upcoming.status) }}
+      {% else %}<span class="regular-label">{{ t('Next game') }}</span><span class="regular-warn">{{ t('Not reserved yet') }}</span>{% endif %}
+      {% if st.last %}<small class="regular-last is-{{ st.result }}">{{ t('Last week') }}: {{ t({'played':'Played','missed':'Did not come','cancelled':'Cancelled'}[st.result]) }} · <bdi>{{ st.last.business_day }}</bdi></small>{% endif %}
+      {% if s.conflict_on %}<small class="regular-warn">{{ t('Week of') }} <bdi>{{ s.conflict_on }}</bdi> {{ t('could not be reserved — the slot was taken or blocked.') }}</small>{% endif %}
+      <small class="muted">{{ t('Games played') }}: {{ st.played }}</small>
+    </div>
+    {% if can('cancellations') %}<div class="regular-actions">
+      {% if st.upcoming %}<details class="bill-details"><summary>{{ t('Cancel this week') }}</summary><form method="post">{{ token() }}<input type="hidden" name="action" value="cancel_week"><input type="hidden" name="id" value="{{ s.id }}">{{ field('reason','Reason',required=true,value=t('Not coming this week')) }}<button class="btn btn-outline btn-sm">{{ t('Cancel only this week') }}</button><p class="help-text">{{ t('The following week is reserved straight away.') }}</p></form></details>{% endif %}
+      <details class="bill-details"><summary>{{ t('Stop regular booking') }}</summary><form method="post">{{ token() }}<input type="hidden" name="action" value="stop"><input type="hidden" name="id" value="{{ s.id }}">{{ field('reason','Reason',required=true,value=t('Did not come')) }}<button class="btn btn-danger btn-sm">{{ t('Stop and release the slot') }}</button></form></details>
+    </div>{% endif %}
+  </article>
+  {% else %}{{ empty('No regular bookings yet.') }}{% endfor %}
+  {% if ended %}<details class="regular-ended"><summary>{{ t('Stopped') }} ({{ ended|length }})</summary>{% for s in ended %}<div class="list-row"><div><strong>{{ s.customer_name }}</strong><small>{{ t(weekdays[s.weekday]) }} · <bdi dir="ltr">{{ clock(s.hour) }}</bdi> · {{ s.stadium.name }} · {{ t('Games played') }}: {{ states[s.id].played }}</small></div><small>{{ s.end_reason }} · <bdi>{{ s.ended_at|venue_time }}</bdi></small></div>{% endfor %}</details>{% endif %}
+</section>
+<section class="panel manage-form">
+  <h2>{{ t('Add a regular') }}</h2>
+  <form method="post">{{ token() }}<input type="hidden" name="action" value="create">
+    <div class="form-grid">{{ field('customer_name','Full name',required=true) }}{{ field('customer_phone','Phone','tel',required=true) }}
+      <label class="field"><span>{{ t('Court') }} <span aria-hidden="true">*</span></span><select name="stadium_id" required>{% for c in courts %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
+      {{ hour_select('hour','Start time',settings.evening_start_hour if settings.evening_start_hour is not none else settings.opening_hour,true) }}
+      <label class="field"><span>{{ t('How long') }} <span aria-hidden="true">*</span></span><select name="duration" required>{% for h in range(1,(settings.max_booking_hours or 4)+1) %}<option value="{{ h }}" {{ 'selected' if h==2 }}>{{ h }} {{ t('hours') }}</option>{% endfor %}</select></label>
+      {{ field('starts_on','Starting from','date',business_today,true) }}
+    </div>
+    <fieldset class="weekday-picker"><legend>{{ t('Days of the week') }} <span aria-hidden="true">*</span></legend>{% for d in weekdays %}<label><input type="checkbox" name="weekday" value="{{ loop.index0 }}"><span>{{ t(d) }}</span></label>{% endfor %}</fieldset>
+    <p class="help-text">{{ t('Twice a week? Tick both days. Each day keeps its own slot.') }}</p>
+    {{ field('notes','Notes','textarea') }}
+    <button class="btn btn-primary">{{ t('Save and reserve the first game') }} ↗</button>
+  </form>
+</section>
+</div>{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'admin/base.html' %}{% from 'macros.html' import token,field,empty,owed,dual with context %}
+{% block subtitle %}<p>{{ t('Regular customers with an account. Save their bills to their name; they pay whenever they want.') }}</p>{% endblock %}
+{% block heading_actions %}<a href="#new-client" class="btn btn-primary">+ {{ t('Open an account') }}</a>{% endblock %}
+{% block workspace %}
+<div class="metrics clients-metrics">
+  <div class="metric featured"><span class="label">{{ t('Clients owe us') }}</span><strong>{{ dual(total) }}</strong><small>{{ owing_count }} {{ t('of') }} {{ client_count }} {{ t('clients owe money') }}</small></div>
+  <div class="metric"><span class="label">{{ t('Client accounts') }}</span><strong>{{ client_count }}</strong><small>{{ t('Names stay until you delete them') }}</small></div>
+</div>
+<form class="filter-bar clients-filter"><label class="search-field"><input type="search" name="q" placeholder="{{ t('Name or phone') }}" aria-label="{{ t('Name or phone') }}" value="{{ request.args.get('q','') }}"></label><select name="show" aria-label="{{ t('Show') }}"><option value="">{{ t('All clients') }}</option><option value="owing" {{ 'selected' if request.args.get('show')=='owing' }}>{{ t('Only those who owe') }}</option></select><button class="btn btn-outline">{{ t('Filter') }}</button></form>
+<div class="management-layout clients-layout">
+<section class="client-grid">
+  {% for c in rows %}{% set o = owes[c.id] %}{% set owing = o.values()|sum %}
+  <article class="client-card{{ ' is-owing' if owing }}">
+    <a class="client-main" href="/admin/clients/{{ c.id }}"><span class="tab-avatar" aria-hidden="true">{{ c.name[:1]|upper }}</span><div><h3>{{ c.name }}</h3>{% if c.phone %}<small dir="ltr">{{ c.phone }}</small>{% endif %}</div></a>
+    <div class="client-owes"><span>{{ t('Owes') }}</span>{{ owed(o) }}</div>
+    <small class="client-last">{{ t('Last visit') }}: {% if last[c.id] %}<bdi>{{ last[c.id]|venue_time }}</bdi>{% else %}—{% endif %}{% if open_tabs.get(c.id) %} · <span class="client-tag">{{ t('Tab open now') }}</span>{% endif %}</small>
+    <div class="client-actions">
+      {% if can('pos') %}{% if open_tabs.get(c.id) %}<a class="btn btn-primary btn-sm" href="/pos/session/{{ open_tabs[c.id].id }}">{{ t('Open their tab') }} ↗</a>{% else %}<form method="post" action="/pos">{{ token() }}<input type="hidden" name="session_type" value="person"><input type="hidden" name="client_id" value="{{ c.id }}"><button class="btn btn-primary btn-sm">+ {{ t('Add items') }}</button></form>{% endif %}{% endif %}
+      <a class="btn btn-outline btn-sm" href="/admin/clients/{{ c.id }}">{{ t('Take payment') if owing else t('Account') }}</a>
+    </div>
+  </article>
+  {% else %}<div class="panel">{{ empty('No clients found.' if request.args.get('q') or request.args.get('show') else 'No clients yet.') }}</div>{% endfor %}
+</section>
+<aside class="panel manage-form" id="new-client">
+  <h2>{{ t('Open an account') }}</h2>
+  <form method="post">{{ token() }}{{ field('name','Full name',required=true) }}{{ field('phone','Phone','tel') }}{{ field('notes','Notes','textarea') }}<button class="btn btn-primary">{{ t('Open account') }} ↗</button>
+  <p class="help-text">{{ t('At the cashier, pick their name to open their tab. When they finish, save the bill to their account or let them pay now. They can pay what they owe any time from here.') }}</p></form>
+</aside>
+</div>{% endblock %}

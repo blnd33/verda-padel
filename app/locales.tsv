@@ -866,3 +866,142 @@ Any day|أي يوم
 Tomorrow|غداً
 Upcoming|القادمةcashier|كاشير
 Enter a password for the new staff member.|أدخل كلمة مرور للموظف الجديد.
+
+It's {name}'s time · weekly regular|حان وقت {name} · حجز أسبوعي ثابت
+Regular bookings|الحجوزات الأسبوعية
+Players who come every week keep their slot. Their next game is always reserved; when they play, next week is booked for them.|اللاعبون الذين يأتون كل أسبوع يحتفظون بموعدهم. لعبتهم التالية محجوزة دائماً؛ وعندما يلعبون يُحجز لهم الأسبوع التالي.
+Weekly regulars|اللاعبون الأسبوعيون
+Next game|اللعبة التالية
+Not reserved yet|لم يُحجز بعد
+Last week|الأسبوع الماضي
+Played|لعب
+Did not come|لم يحضر
+Week of|أسبوع
+could not be reserved — the slot was taken or blocked.|تعذّر حجزه — الموعد محجوز أو مغلق.
+Games played|الألعاب الملعوبة
+Cancel this week|إلغاء هذا الأسبوع
+Not coming this week|لن يحضر هذا الأسبوع
+Cancel only this week|إلغاء هذا الأسبوع فقط
+The following week is reserved straight away.|يُحجز الأسبوع التالي فوراً.
+Stop regular booking|إيقاف الحجز الأسبوعي
+Stop and release the slot|إيقاف وتحرير الموعد
+No regular bookings yet.|لا توجد حجوزات أسبوعية بعد.
+Stopped|متوقفة
+Add a regular|إضافة لاعب أسبوعي
+How long|المدة
+Starting from|ابتداءً من
+Days of the week|أيام الأسبوع
+Twice a week? Tick both days. Each day keeps its own slot.|مرتين في الأسبوع؟ اختر اليومين. لكل يوم موعده الخاص.
+Save and reserve the first game|حفظ وحجز أول لعبة
+Weekly regular booking|حجز أسبوعي ثابت
+the next week is reserved automatically after this game.|يُحجز الأسبوع التالي تلقائياً بعد هذه اللعبة.
+Manage regulars|إدارة الحجوزات الأسبوعية
+Repeat every week|تكرار كل أسبوع
+Keeps this slot for this player every week until you stop it.|يحتفظ بهذا الموعد لهذا اللاعب كل أسبوع حتى توقفه.
+Weekly|أسبوعي
+{actor} set up a weekly regular booking: {record}|{actor} أنشأ حجزاً أسبوعياً ثابتاً: {record}
+{actor} stopped the weekly regular booking: {record}|{actor} أوقف الحجز الأسبوعي: {record}
+Next week was reserved automatically: {record}|حُجز الأسبوع التالي تلقائياً: {record}
+{name}, every {day} at {time} on {court}|{name}، كل {day} الساعة {time} على {court}
+Choose at least one day of the week.|اختر يوماً واحداً على الأقل من الأسبوع.
+This weekly slot is already a regular booking.|هذا الموعد الأسبوعي محجوز مسبقاً كحجز ثابت.
+This booking is already a weekly regular booking.|هذا الحجز أسبوعي ثابت بالفعل.
+Only an open booking can be repeated every week.|يمكن تكرار الحجز المفتوح فقط كل أسبوع.
+There is no upcoming game to cancel.|لا توجد لعبة قادمة لإلغائها.
+Monday|الاثنين
+Tuesday|الثلاثاء
+Wednesday|الأربعاء
+Thursday|الخميس
+Friday|الجمعة
+Saturday|السبت
+Sunday|الأحد{court} is booked right now for {name} ({start} – {end}, {status}). If they are here, start it from “Bookings starting now” or choose it under “Link reservation”; otherwise cancel that booking first.|{court} محجوز الآن لـ {name} ({start} – {end}، {status}). إذا كان حاضراً فابدأ الجلسة من «حجوزات تبدأ الآن» أو اختره من «ربط الحجز»؛ وإلا فألغِ ذلك الحجز أولاً.
+{court} is booked for {name} at {start} ({status}), within the {minutes}-minute minimum session. Use another court for the walk-in, or move or cancel that booking.|{court} محجوز لـ {name} الساعة {start} ({status})، ضمن الحد الأدنى للجلسة ({minutes} دقيقة). استخدم ملعباً آخر للزبون بدون حجز، أو انقل ذلك الحجز أو ألغِه.
+{court} is blocked for maintenance until {end}.|{court} مغلق للصيانة حتى {end}.
+Delete this permanently?|حذف نهائياً؟
+The category is removed. Its products stay, without a category.|تُحذف الفئة. تبقى منتجاتها بدون فئة.
+The product is removed from the products list, cashier and store. If it was ever sold, its past receipts and reports keep it.|يُحذف المنتج من قائمة المنتجات والكاشير والمتجر. إذا كان قد بيع سابقاً، تبقى إيصالاته وتقاريره السابقة.
+Deleted.|تم الحذف.
+Deleted. Its past sales stay in receipts and reports.|تم الحذف. تبقى مبيعاته السابقة في الإيصالات والتقارير.
+Deleted. Its products now have no category.|تم الحذف. أصبحت منتجاتها بدون فئة.
+{actor} deleted {thing} “{name}”|{actor} حذف {thing} «{name}»
+Delete|حذف
+A one-off debt on this name, without an account.|دين لمرة واحدة على هذا الاسم، بدون حساب.
+A regular? Pick their name. What they take goes on their account.|زبون دائم؟ اختر اسمه، وكل ما يأخذه يُسجَّل على حسابه.
+Account|الحساب
+Account opened for {name}.|تم فتح حساب لـ {name}.
+Add items|إضافة أغراض
+Add to account|أضف إلى الحساب
+Add to the account|إضافة إلى الحساب
+Added to the account|أُضيف إلى الحساب
+Added to {name}’s account.|أُضيف إلى حساب {name}.
+All clients|كل الزبائن
+Already owes|عليه سابقاً
+Amount paid|المبلغ المدفوع
+At the cashier, pick their name to open their tab. When they finish, save the bill to their account or let them pay now. They can pay what they owe any time from here.|في الكاشير اختر اسمه لفتح فاتورته. عند الانتهاء احفظ الفاتورة على حسابه أو دعه يدفع الآن. ويمكنه تسديد ما عليه في أي وقت من هنا.
+Bills on the account|الفواتير على الحساب
+Charged|المسجّل عليه
+Choose a client|اختر زبوناً
+Choose the client account to save this bill to.|اختر حساب الزبون الذي تُحفظ عليه هذه الفاتورة.
+Client|الزبون
+Client account|حساب زبون
+Client accounts|حسابات الزبائن
+Clients|الزبائن
+Clients owe us|مستحق لنا على الزبائن
+Delete account|حذف الحساب
+Edit name and phone|تعديل الاسم والهاتف
+For an old balance or anything not rung up at the cashier. Items from the cashier are added by saving the bill to this account.|لرصيد قديم أو أي شيء لم يُسجَّل في الكاشير. أغراض الكاشير تُضاف بحفظ الفاتورة على هذا الحساب.
+Goes on their name. They pay whenever they want.|تُسجَّل على اسمه، ويدفع متى شاء.
+How is this bill settled?|كيف تُسدَّد هذه الفاتورة؟
+Last visit|آخر زيارة
+Left|المتبقي
+Names stay until you delete them|تبقى الأسماء حتى تحذفها
+No clients found.|لا يوجد زبائن مطابقون.
+No clients yet.|لا يوجد زبائن بعد.
+No payments yet.|لا توجد دفعات بعد.
+Nothing has been saved to this account yet.|لم يُحفظ شيء على هذا الحساب بعد.
+Nothing is owed in this currency.|لا يوجد مبلغ مستحق بهذه العملة.
+Nothing owed|لا شيء عليه
+One-time customer: print the receipt, they pay and go.|زبون لمرة واحدة: اطبع الإيصال، يدفع ويذهب.
+Only those who owe|من عليهم مبالغ فقط
+Open account|فتح الحساب
+Open an account|فتح حساب
+Open their tab|افتح فاتورته
+Owes|عليه
+Owes now|عليه الآن
+Paid|المدفوع
+Paid by card, receipt printed.|دفع بالبطاقة، ويُطبع الإيصال.
+Part paid|مدفوع جزئياً
+Pay now · card|يدفع الآن · بطاقة
+Pay now · cash|يدفع الآن · نقداً
+Payment recorded. {name} has paid everything in this currency.|تم تسجيل الدفعة. سدّد {name} كل ما عليه بهذه العملة.
+Payment recorded. {name} now owes {amount}.|تم تسجيل الدفعة. على {name} الآن {amount}.
+Payments received|الدفعات المستلمة
+Regular customers with an account. Save their bills to their name; they pay whenever they want.|الزبائن الدائمون أصحاب الحسابات. احفظ فواتيرهم على أسمائهم، ويدفعون متى شاؤوا.
+Save to a client account|حفظ على حساب زبون
+Save to {name}’s account|حفظ على حساب {name}
+Saved to account|محفوظة على الحساب
+Saved.|تم الحفظ.
+Show|عرض
+Still owes|المتبقي عليه
+Tab open now|فاتورته مفتوحة الآن
+Take a payment|استلام دفعة
+Take payment|استلام دفعة
+The name is removed from Clients. Their past bills stay in the receipt archive. An account that still owes money cannot be deleted.|يُحذف الاسم من الزبائن، وتبقى فواتيره السابقة في أرشيف الإيصالات. لا يمكن حذف حساب عليه مبالغ.
+They can pay all of it or only part. The money clears their oldest bills first.|يمكنه دفع المبلغ كله أو جزء منه. تُسدَّد أقدم الفواتير أولاً.
+This client account no longer exists.|حساب هذا الزبون لم يعد موجوداً.
+What is it for?|مقابل ماذا؟
+clients owe money|زبائن عليهم مبالغ
+of|من
+the client account|حساب الزبون
+Client account opened|فتح حساب زبون
+Client account updated|تعديل حساب زبون
+Client account paid|دفعة من حساب زبون
+{actor} edited the client account {record}|عدّل {actor} حساب الزبون {record}
+{actor} opened a client account for {name}|فتح {actor} حساب زبون لـ {name}
+{actor} received {amount} ({method}) from {record}|استلم {actor} مبلغ {amount} ({method}) من {record}
+{actor} saved {record} to {name}'s account ({amounts})|حفظ {actor} {record} على حساب {name} ({amounts})
+{name} already has an account.|لدى {name} حساب بالفعل.
+{name} has an open tab. Close it first.|لدى {name} فاتورة مفتوحة. أغلقها أولاً.
+{name} still owes {amount}. Take the payment first, then delete the account.|ما زال على {name} مبلغ {amount}. استلم الدفعة أولاً ثم احذف الحساب.
+{name}’s account was deleted. Their past bills stay in the receipt archive.|تم حذف حساب {name}. تبقى فواتيره السابقة في أرشيف الإيصالات.
+account|على الحساب

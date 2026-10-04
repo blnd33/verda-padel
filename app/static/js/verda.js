@@ -193,3 +193,20 @@ window.addEventListener('resize',place);if(document.fonts&&document.fonts.ready)
 (()=>{const header=document.querySelector('.site-public .site-header');if(!header)return;
 const set=()=>document.documentElement.style.setProperty('--header-h',header.offsetHeight+'px');
 set();window.addEventListener('resize',set);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(set);})();
+
+/* Client accounts: choosing a client selects "save to account"; the quick-sale
+   client picker shows only when that method is chosen. */
+document.querySelectorAll('[data-client-pick]').forEach(select=>select.addEventListener('change',()=>{
+  const radio=select.closest('.settle-choice')?.querySelector('input[type=radio]');
+  if(radio&&select.value)radio.checked=true;
+}));
+document.querySelectorAll('.settle-form').forEach(form=>form.addEventListener('submit',event=>{
+  const chosen=form.querySelector('input[name=method]:checked'),pick=form.querySelector('[data-client-pick]');
+  if(chosen&&chosen.value==='account'&&pick&&!pick.value){event.preventDefault();pick.focus();}
+}));
+document.querySelectorAll('[data-quick-method]').forEach(method=>{
+  const box=method.closest('form').querySelector('[data-quick-client]');
+  if(!box)return;
+  const sync=()=>{const on=method.value==='account';box.hidden=!on;box.querySelector('select').required=on;};
+  method.addEventListener('change',sync);sync();
+});

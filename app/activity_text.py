@@ -14,16 +14,17 @@ MONEY_FIELDS = {'price', 'cost_price', 'amount'}
 IQD_FIELDS = {'price_per_hour', 'evening_rate', 'delivery_fee'}
 HIDDEN_FIELDS = {'password', 'image', 'image_url'}
 THINGS = {'product': 'the product', 'category': 'the category', 'stadium': 'the court', 'expense': 'an expense',
-          'user': 'the staff member', 'table': 'the table'}
+          'user': 'the staff member', 'table': 'the table', 'client': 'the client account'}
 
 
 def load_records(rows):
     """Fetch every record the page mentions in one query per type."""
     from app.models import (POSSession, Booking, Order, Product, Category, Stadium, Expense, ManualDebt,
-                            User, CourtBlock, POSOrder, POSOrderItem, Table)
+                            User, CourtBlock, POSOrder, POSOrderItem, Table, RegularBooking, Client)
     models = {'pos_session': POSSession, 'booking': Booking, 'order': Order, 'product': Product,
               'category': Category, 'stadium': Stadium, 'expense': Expense, 'manual_debts': ManualDebt,
-              'user': User, 'court_block': CourtBlock, 'pos_order': POSOrder, 'table': Table}
+              'user': User, 'court_block': CourtBlock, 'pos_order': POSOrder, 'table': Table,
+              'regular_booking': RegularBooking, 'client': Client}
     wanted = {}
     for r in rows:
         if r.entity_type in models and r.entity_id:
@@ -102,6 +103,12 @@ def describe(log, lang, found, items):
             text = say('{actor} applied a discount to {record}')
     elif action == 'Play finished':
         text = say('{actor} stopped the timer on {record}')
+    elif action == 'Regular booking created':
+        text = say('{actor} set up a weekly regular booking: {record}')
+    elif action == 'Regular booking stopped':
+        text = say('{actor} stopped the weekly regular booking: {record}')
+    elif action == 'Weekly booking reserved':
+        text = say('Next week was reserved automatically: {record}')
     elif action == 'Booked time ended':
         text = say('{record}: the booked time ended and the timer stopped automatically')
     elif action == 'Booking start declined':
@@ -110,6 +117,9 @@ def describe(log, lang, found, items):
         amounts = amounts_text(after, log.amount)
         if log.payment_method == 'debt':
             text = say('{actor} closed {record} and put {amounts} on debt', amounts=amounts)
+        elif log.payment_method == 'account':
+            text = say("{actor} saved {record} to {name}'s account ({amounts})", amounts=amounts,
+                       name=getattr(obj, 'customer_name', '') or '')
         else:
             text = say('{actor} closed {record}: {amounts} paid by {method}', amounts=amounts, method=t(log.payment_method or 'cash'))
     elif action == 'Bill customer updated':
@@ -141,6 +151,17 @@ def describe(log, lang, found, items):
                    amount=money_fmt(log.amount or 0, after.get('currency', 'IQD')))
     elif action == 'Order cancelled':
         text = say('{actor} cancelled {record}')
+    elif action == 'Client account opened':
+        text = say('{actor} opened a client account for {name}', name=after.get('name', ''))
+    elif action == 'Client account updated':
+        text = say('{actor} edited the client account {record}')
+        details = field_changes('client', before, after, False, obj, lang)
+    elif action == 'Client account paid':
+        code = after.get('currency', 'IQD')
+        text = say('{actor} received {amount} ({method}) from {record}', method=t(log.payment_method or 'cash'),
+                   amount=money_fmt(log.amount or 0, code))
+        if 'still_owed' in after:
+            details = [dict(label=t('Still owes'), old=None, new=money_fmt(after['still_owed'], code))]
     elif action == 'Manual debt created':
         text = say('{actor} recorded {record}')
     elif action == 'Debt collected':
@@ -156,6 +177,9 @@ def describe(log, lang, found, items):
         text = say('{actor} removed the maintenance block on {record}')
     elif action == 'Barcode regenerated':
         text = say('{actor} made a new barcode for {record}')
+    elif action == 'Record deleted':
+        values['thing'] = t(THINGS.get(log.entity_type, 'a record'))
+        text = say('{actor} deleted {thing} “{name}”', name=after.get('name', ''))
     elif action in ('Record created', 'Record updated', 'Record archived'):
         values['thing'] = t(THINGS.get(log.entity_type, 'a record'))
         template = {'Record created': '{actor} added {thing} {record}', 'Record updated': '{actor} updated {thing} {record}',
@@ -183,6 +207,8 @@ def record_name(log, obj, lang):
         return t('the booking for {name} on {court}, {when}').format(name=obj.customer_name, court=court, when=when)
     if kind == 'order':
         return t('website order VP-{ref} from {name}').format(ref=(obj.reference or '')[:10].upper(), name=obj.customer_name)
+    if kind == 'client':
+        return obj.name
     if kind == 'manual_debts':
         return t('a debt of {amount} for {name}').format(amount=money_fmt(obj.amount, obj.currency or 'IQD'), name=obj.name or '—')
     if kind == 'product':
@@ -193,6 +219,11 @@ def record_name(log, obj, lang):
         return f'“{t(obj.category)}” ({money_fmt(obj.amount, obj.currency or "IQD")})'
     if kind == 'user':
         return obj.username
+    if kind == 'regular_booking':
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        from app.i18n import clock
+        return t('{name}, every {day} at {time} on {court}').format(name=obj.customer_name, day=t(days[obj.weekday]),
+            time=clock(obj.hour, 0, lang), court=obj.stadium.name if obj.stadium else '')
     if kind == 'court_block':
         return obj.court.name if getattr(obj, 'court', None) else t('a court')
     return getattr(obj, 'name', None) or f'#{obj.id}'
