@@ -537,14 +537,50 @@ def test_accept_starts_at_booked_time_and_auto_stops_at_booked_end(app,staff):
     with app.app_context():
         b=db.session.get(Booking,bid);b.ends_at=core.now()-timedelta(seconds=5);db.session.commit();end=b.ends_at
     stopped=staff.get('/pos/api/due').json['stopped']
-    assert len(stopped)==1 and 'timer stopped' in stopped[0]['text']
+    assert len(stopped)==1 and 'Paid in cash' in stopped[0]['text']
+    assert stopped[0]['url']==f'/pos/receipt/{stopped[0]["id"]}'
     assert staff.get('/pos/api/due').json['stopped']==[]
     with app.app_context():
-        s=POSSession.query.one()
-        assert s.status=='stopped' and s.end_time==end and s.occupancy_key is None
-        assert s.total_amount==90000
+        s=POSSession.query.one();b=db.session.get(Booking,bid)
+        # The booked time is settled in cash on its own: paid, receipt-ready, booking completed.
+        assert s.status=='paid' and s.payment_method=='cash' and s.finalized_at is not None
+        assert s.end_time==end and s.occupancy_key is None
+        assert s.total_amount==90000 and b.status=='completed'
+        pay=Payment.query.filter_by(session_id=s.id).one()
+        assert pay.amount==90000 and pay.method=='cash' and pay.currency=='IQD' and pay.business_day==b.business_day
         assert ActivityLog.query.filter_by(action='Booked time ended').count()==1
+        assert ActivityLog.query.filter_by(action='Bill finalized').count()==1
+        sid,today=s.id,core.business_date()
     assert 'the booked time ended and the timer stopped automatically' in staff.get('/admin/activity').get_data(as_text=True)
+    # It is in the receipt archive as a cash receipt and can be opened for printing.
+    archive=staff.get(f'/admin/archive?start={today}&end={today}').get_data(as_text=True)
+    assert f'/pos/receipt/{sid}' in archive
+    assert staff.get(f'/pos/receipt/{sid}').status_code==200
+
+def test_timer_screen_opens_receipt_when_its_time_runs_out(app,staff):
+    bid=make_booking(app,-5,hours=1,name='Timer screen')
+    url=json_post(staff,f'/pos/bookings/{bid}/start').json['url']
+    with app.app_context():
+        b=db.session.get(Booking,bid);b.ends_at=core.now()-timedelta(seconds=1);db.session.commit()
+        sid=POSSession.query.one().id
+    # The reload that settles the bill goes straight to its receipt; later visits show the paid bill.
+    r=staff.get(url)
+    assert r.status_code==302 and r.headers['Location'].endswith(f'/pos/receipt/{sid}')
+    assert staff.get(url).status_code==200
+
+def test_booked_time_settles_even_when_nobody_was_watching(app,staff):
+    """A game that ended while no staff screen was open is settled on the next
+    check, ending at its booked end and dated to the booking's business day."""
+    bid=make_booking(app,-5,hours=1,name='Late check')
+    assert json_post(staff,f'/pos/bookings/{bid}/start').status_code==200
+    with app.app_context():
+        b=db.session.get(Booking,bid);b.ends_at=core.now()-timedelta(hours=2);b.business_day=core.business_date()-timedelta(days=1)
+        db.session.commit();end,day=b.ends_at,b.business_day
+    staff.get('/pos')
+    with app.app_context():
+        s=POSSession.query.one()
+        assert s.status=='paid' and s.end_time==end and s.total_amount==30000
+        assert Payment.query.filter_by(session_id=s.id).one().business_day==day
 
 def test_decline_dismisses_the_prompt(app,staff):
     bid=make_booking(app,-1)
@@ -663,15 +699,24 @@ def test_cancel_one_week_then_stop(app,staff):
         assert Booking.query.filter_by(status='confirmed').count()==0 and Booking.query.count()==2
     assert 'stopped the weekly regular booking' in staff.get('/admin/activity').get_data(as_text=True)
 
-def test_repeat_every_week_from_a_booking_and_settle_reserves_next(app,staff):
+def test_weekly_regulars_are_made_on_the_regulars_page_only(app,staff):
+    bid=make_booking(app,60,name='One-off')
+    # The booking page no longer offers "Repeat every week", and the action is refused.
+    assert 'repeat_weekly' not in staff.get(f'/admin/bookings/{bid}').get_data(as_text=True)
+    post(staff,f'/admin/bookings/{bid}',dict(action='repeat_weekly'))
+    with app.app_context():
+        assert RegularBooking.query.count()==0 and db.session.get(Booking,bid).regular_id is None
+
+def test_settling_a_regulars_game_reserves_next_week(app,staff):
     # Open around the clock so the slot is valid whatever time the test runs.
     with app.app_context():
         core.settings().opening_hour=core.settings().closing_hour=0;db.session.commit()
     bid=make_booking(app,-5,hours=2,name='Sara')
-    assert post(staff,f'/admin/bookings/{bid}',dict(action='repeat_weekly')).status_code==302
     with app.app_context():
-        b=db.session.get(Booking,bid);s=RegularBooking.query.one()
-        assert b.regular_id==s.id and s.weekday==b.business_day.weekday() and s.duration_hours==2
+        b=db.session.get(Booking,bid)
+        s=RegularBooking(customer_name=b.customer_name,customer_phone=b.customer_phone,stadium_id=b.stadium_id,
+            weekday=b.business_day.weekday(),hour=b.start_time.hour,duration_hours=2,starts_on=b.business_day,created_at=core.now())
+        db.session.add(s);db.session.flush();b.regular_id=s.id;db.session.commit()
         first_day=b.business_day
     r=json_post(staff,f'/pos/bookings/{bid}/start')
     assert r.status_code==200

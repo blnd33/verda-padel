@@ -382,9 +382,6 @@ def booking_detail(record_id):
         authorize('cancellations' if action in ['cancel','restore','request_cancel','reject'] else 'bookings')
         if action=='edit':
             core.create_booking(request.form,public=False,existing=record)
-        elif action=='repeat_weekly':
-            core.regular_from_booking(record)
-            return redirect('/admin/regulars')
         else:
             core.decide_booking(record,action,request.form.get('reason',''))
         return redirect(safe_admin_next(request.form.get('next')) or f'/admin/bookings/{record.id}')

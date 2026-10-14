@@ -849,12 +849,13 @@ an item|منتجاً
 Yes|نعم
 No|لاIt's {name}'s time|حان وقت {name}
 {court} · {starts} – {ends} ({hours} h)|{court} · {starts} – {ends} ({hours} س)
-{name}'s booked time on {court} has ended. The timer stopped.|انتهى وقت حجز {name} على {court}. توقف المؤقت.
+{name}'s booked time on {court} has ended. Paid in cash; the receipt is in the archive.|انتهى وقت حجز {name} على {court}. دُفعت نقداً، والإيصال في الأرشيف.
 Accept & start|قبول وبدء
 Could not start. Check the cashier page.|تعذّر البدء. راجع صفحة الكاشير.
 This booking can no longer be started.|لم يعد بالإمكان بدء هذا الحجز.
 Booked until|محجوز حتى
 stops automatically|يتوقف تلقائياً
+stops and is paid in cash automatically|يتوقف ويُدفع نقداً تلقائياً
 Bookings starting now|حجوزات تبدأ الآن
 h|س
 {actor} started {name}'s booked session on {court}|{actor} بدأ جلسة {name} المحجوزة على {court}

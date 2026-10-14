@@ -319,22 +319,6 @@ def create_regulars(data):
     return created
 
 
-def regular_from_booking(booking):
-    """'Repeat every week' on an existing booking: it becomes the first game."""
-    if booking.regular_id:
-        raise RuleError('This booking is already a weekly regular booking.')
-    if booking.status not in ['pending', 'confirmed']:
-        raise RuleError('Only an open booking can be repeated every week.')
-    series = RegularBooking(customer_name=booking.customer_name, customer_phone=booking.customer_phone, notes=booking.notes,
-        stadium_id=booking.stadium_id, weekday=booking.business_day.weekday(), hour=booking.start_time.hour,
-        duration_hours=booking.duration_hours, starts_on=booking.business_day, created_by=actor(), created_at=now())
-    db.session.add(series)
-    db.session.flush()
-    booking.regular_id = series.id
-    audit('Regular booking created', series)
-    return series
-
-
 def cancel_regular_week(series, reason):
     """They will not come this week: cancel only this game; next week is reserved."""
     live = Booking.query.filter(Booking.regular_id == series.id, Booking.status.in_(LIVE_BOOKING),
@@ -685,8 +669,10 @@ def decline_booking_start(booking, reason=''):
 
 
 def stop_finished_bookings(at=None):
-    """Stop every running booked session whose booked time is over. The end is
-    the booked end, not the moment this runs, so billing is exactly the booking."""
+    """Stop every running booked session whose booked time is over and settle
+    it in cash, so its receipt lands in the archive ready to print. The end is
+    the booked end, not the moment this runs, so billing is exactly the booking;
+    the payment is dated to the booking's business day for the same reason."""
     at = at or now()
     stopped = []
     for record in POSSession.query.filter(POSSession.status == 'active', POSSession.booking_id.isnot(None)).all():
@@ -699,6 +685,7 @@ def stop_finished_bookings(at=None):
             db.session.refresh(record)
             freeze_play(record)
             audit('Booked time ended', record)
+            settle_session(record, 'cash', day=record.booking.business_day or record.business_day)
             stopped.append(record)
     return stopped
 
@@ -791,10 +778,11 @@ def balance(obj, currency=None):
     return max(0, bill_total(obj, currency) - paid)
 
 
-def settle_session(record, method, client_id=None):
+def settle_session(record, method, client_id=None, day=None):
     """Each currency's total is settled in that currency: one payment (or one
     debt) per currency the bill holds. Nothing is converted. 'account' saves
-    the bill to a client account as that client's debt."""
+    the bill to a client account as that client's debt. `day` dates the
+    payment to a given business day instead of today's."""
     if record.status in ['paid','debt']:
         return
     if record.status not in ['active','stopped'] or method not in ['cash','card','debt','account']:
@@ -823,11 +811,11 @@ def settle_session(record, method, client_id=None):
             continue
         if method in ['debt', 'account']:
             db.session.add(ManualDebt(name=record.customer_name, phone=record.customer_phone, amount=total, currency=currency,
-                paid_amount=0, date=business_date(), session_id=record.id, created_by=actor(),
+                paid_amount=0, date=day or business_date(), session_id=record.id, created_by=actor(),
                 client_id=record.client_id if method == 'account' else None))
         else:
             db.session.add(Payment(session_id=record.id, amount=total, currency=currency, method=method,
-                user_id=actor(), business_day=business_date()))
+                user_id=actor(), business_day=day or business_date()))
     audit('Bill finalized', record, amount=q['total'], method=method, after=q['totals'])
 
 

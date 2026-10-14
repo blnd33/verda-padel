@@ -152,14 +152,18 @@ if(!r.ok||!(r.headers.get('content-type')||'').includes('json'))return;const dat
 const ids=new Set(data.due.map(b=>String(b.id)));stack.querySelectorAll('.due-card').forEach(c=>{if(!ids.has(c.dataset.id))c.remove();});
 let fresh=false;data.due.forEach(b=>{if(!stack.querySelector(`.due-card[data-id="${b.id}"]`))stack.prepend(card(b));if(!seen.has(b.id)){seen.add(b.id);fresh=true;}});
 if(fresh){remember();chime();}
-data.stopped.forEach(toast);if(data.stopped.length&&location.pathname.startsWith('/pos'))setTimeout(()=>location.reload(),2500);}catch(e){}}
+data.stopped.forEach(toast);const here=data.stopped.find(s=>location.pathname==='/pos/session/'+s.id);
+if(here)setTimeout(()=>location.assign(here.url),2500);else if(data.stopped.length&&location.pathname.startsWith('/pos'))setTimeout(()=>location.reload(),2500);}catch(e){}}
 poll();setInterval(poll,20000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll();});
 window.verdaCheckBookings=poll;})();
 
-/* Booked session countdown: when it reaches zero, ask the server to stop it and refresh. */
+/* Booked session countdown: when it reaches zero, ask the server to stop and settle it,
+   then open its receipt (or refresh, if another screen got there first). */
 document.querySelectorAll('[data-remaining]').forEach(node=>{const end=Date.parse(node.dataset.end+'Z');let done=false;
+const id=(location.pathname.match(/\/pos\/session\/(\d+)/)||[])[1];
 const paint=()=>{const s=Math.max(0,Math.floor((end-Date.now())/1000));node.textContent=[Math.floor(s/3600),Math.floor(s%3600/60),s%60].map(v=>String(v).padStart(2,'0')).join(':');
-if(!s&&!done){done=true;fetch('/pos/api/due',{credentials:'same-origin',headers:{'Accept':'application/json'}}).finally(()=>setTimeout(()=>location.reload(),800));}};paint();setInterval(paint,1000);});
+if(!s&&!done){done=true;fetch('/pos/api/due',{credentials:'same-origin',headers:{'Accept':'application/json'}}).then(r=>r.json()).then(d=>{const mine=(d.stopped||[]).find(x=>String(x.id)===id);
+setTimeout(()=>mine?location.assign(mine.url):location.reload(),800);}).catch(()=>setTimeout(()=>location.reload(),800));}};paint();setInterval(paint,1000);});
 
 /* Staff form: choosing a role presets the permission ticks (still editable). */
 document.querySelectorAll('[data-role-presets]').forEach(grid=>{const form=grid.closest('form');const role=form&&form.querySelector('select[name="role"]');if(!role)return;

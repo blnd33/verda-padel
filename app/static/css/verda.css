@@ -264,7 +264,6 @@ a.tab-card:hover{border-color:#6eaa89;box-shadow:0 10px 26px #173f2e14;transform
 .weekday-picker input:checked+span{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
 .weekday-picker input:focus-visible+span{outline:2px solid var(--green);outline-offset:2px}
 .weekly-tag{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--green-dark);background:#e0f1e8;border-radius:99px;padding:1px 7px;margin-inline-start:4px}
-.repeat-weekly{margin:10px 0 16px}
 .regular-notice{margin:10px 0 14px}
 @media(max-width:900px){.regular-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.regular-next{grid-column:1/-1}}
 

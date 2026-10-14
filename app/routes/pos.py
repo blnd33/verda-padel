@@ -37,8 +37,9 @@ def check_settle(method):
         abort(403)
 
 def sweep():
-    """Stop booked sessions whose time is over. Runs on cashier page loads and on
-    the staff screens' regular check, since there is no background worker."""
+    """Stop and settle (cash) booked sessions whose time is over. Runs on cashier
+    page loads and on the staff screens' regular check, since there is no
+    background worker."""
     stopped=core.stop_finished_bookings()
     reserved=core.keep_regulars_reserved()
     if stopped or reserved:
@@ -61,10 +62,10 @@ def due_api():
             when=t('{court} · {starts} – {ends} ({hours} h)').format(court=b.stadium.name if b.stadium else '',
                 starts=clock_of(core.local(b.starts_at),lang),ends=clock_of(core.local(b.ends_at),lang),hours=b.duration_hours))
             for b in core.due_bookings()],
-        stopped=[dict(id=s.id,url=f'/pos/session/{s.id}',
-            text=t("{name}'s booked time on {court} has ended. The timer stopped.").format(name=s.customer_name or t('Walk-in'),court=s.location_snapshot))
+        stopped=[dict(id=s.id,url=f'/pos/receipt/{s.id}' if permitted('receipts') else f'/pos/session/{s.id}',
+            text=t("{name}'s booked time on {court} has ended. Paid in cash; the receipt is in the archive.").format(name=s.customer_name or t('Walk-in'),court=s.location_snapshot))
             for s in stopped],
-        labels=dict(accept=t('Accept & start'),decline=t('Decline'),open=t('Open bill'),error=t('Could not start. Check the cashier page.')))
+        labels=dict(accept=t('Accept & start'),decline=t('Decline'),open=t('View receipt'),error=t('Could not start. Check the cashier page.')))
 
 @pos.post('/bookings/<int:booking_id>/start')
 @require('pos')
@@ -183,7 +184,9 @@ def session_detail(session_id):
         else:
             raise core.RuleError('Choose a valid action.')
         return redirect(f'/pos/session/{record.id}')
-    sweep()
+    # This bill's booked time just ran out and was settled: show its receipt to print.
+    if any(s.id==record.id for s in sweep()) and permitted('receipts'):
+        return redirect(f'/pos/receipt/{record.id}')
     return render_template('pos/session.html',title='Current bill',record=record,quote=core.session_quote(record),
         products=core.product_query('pos').all(),categories=Category.query.filter_by(is_active=True,show_on_pos=True).all(),
         clients=client_choices(),owes=core.client_owes(record.client) if record.client else None)
