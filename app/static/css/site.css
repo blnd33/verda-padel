@@ -623,10 +623,17 @@ html[data-theme="dark"] .site-public .v-tile.is-c3 .v-court-art{color:var(--lime
 .site-public .time-slot input:checked+span{background:var(--lime);border-color:var(--lime);color:var(--lime-ink)}
 .site-public .time-slot input:checked+span small{color:var(--lime-ink);opacity:.75}
 .site-public .time-slot input:focus-visible+span{outline:3px solid var(--ring);outline-offset:3px}
-.site-public .time-slot.unavailable{opacity:.32;cursor:not-allowed}
-.site-public .time-slot.within-booking>span{border-color:var(--grn);border-style:dashed;background:var(--glow)}
+.site-public .time-slot.unavailable{opacity:.4;background:transparent;cursor:not-allowed}
+.site-public .time-slot.unavailable input{cursor:not-allowed}
+.site-public .time-slot.unavailable>span{background:transparent;border-style:dashed}
+.site-public .time-slot.unavailable:hover>span{border-color:var(--line2)}
+.site-public .time-slot.unavailable b{text-decoration:line-through;text-decoration-thickness:1px}
+.site-public .time-slot.within-booking>span{border-color:var(--grn);border-style:dashed;background:var(--glow);color:var(--txt)}
+.site-public .time-slot.within-booking small{color:var(--grn)}
+.site-public .legends{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:6px 14px}
 .site-public .legend{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--mut)}
 .site-public .legend i{width:8px;height:8px;border-radius:50%;background:var(--grn)}
+.site-public .legend.is-booked i{background:transparent;border:1px dashed var(--mut)}
 .site-public .booking-summary{position:sticky;top:84px;background:var(--surf2);
   border:1px solid var(--line2);border-radius:var(--r-lg);padding:24px;overflow:hidden}
 .site-public .booking-summary .mini-court{height:120px;margin:22px auto}
@@ -839,7 +846,6 @@ html[data-theme="dark"] .site-public .agency-credit img{filter:brightness(0) inv
   .site-public .product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .site-public .form-grid{grid-template-columns:minmax(0,1fr)}
   .site-public .booking-filters{grid-template-columns:minmax(0,1fr)}
-  .site-public .slot-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
   .site-public .footer-top{grid-template-columns:minmax(0,1fr)}
   .site-public .panel,.site-public .booking-summary{padding:18px}
   .v-tile{min-height:154px;padding:18px;border-radius:var(--r-md)}
@@ -848,18 +854,20 @@ html[data-theme="dark"] .site-public .agency-credit img{filter:brightness(0) inv
   .v-hero-act{flex-direction:column;align-items:stretch}
   .v-hero-act .btn{width:100%}
 
-  /* swipeable time slots */
-  .site-public .slot-grid{
-    display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
-    -webkit-overflow-scrolling:touch;scrollbar-width:none;
-    gap:8px;padding-bottom:6px}
-  .site-public .slot-grid::-webkit-scrollbar{display:none}
-  .site-public .time-slot{flex:0 0 88px;scroll-snap-align:start}
+  /* square time-slot tiles: every start time visible at once */
+  .site-public .slot-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .site-public .time-slot>span{aspect-ratio:1;justify-content:center;gap:6px;
+    padding:8px 6px;text-align:center;border-radius:var(--r-md)}
+  .site-public .time-slot b{font-size:15px;line-height:1.25;white-space:nowrap}
+  .site-public .time-slot .slot-end{display:block;font-size:11px;opacity:.7;margin-top:2px}
+  .site-public .time-slot small{font-size:10px;line-height:1.3}
 }
 @media(max-width:400px){
   .site-public .product-grid{grid-template-columns:minmax(0,1fr)}
-  .site-public .slot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .site-public .brand-word{display:none}
+}
+@media(max-width:340px){
+  .site-public .slot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
 /* ==========================================================================
