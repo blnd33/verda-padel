@@ -573,6 +573,14 @@ html[data-theme="dark"] .site-public .v-tile.is-c3 .v-court-art{color:var(--lime
 .site-public input:focus,.site-public select:focus,.site-public textarea:focus{
   border-color:var(--grn);box-shadow:0 0 0 3px var(--glow);outline:none}
 .site-public input::placeholder,.site-public textarea::placeholder{color:var(--mut);opacity:.75}
+/* iOS Safari gives native date/time inputs an intrinsic min-width that ignores
+   width:100% (overflowing the card) and centres the value; tame both. */
+@supports(-webkit-touch-callout:none){
+  .site-public input[type=date],.site-public input[type=time],
+  .site-public input[type=datetime-local],.site-public input[type=month]{
+    -webkit-appearance:none;appearance:none;display:block;min-width:0;text-align:start}
+  .site-public input::-webkit-date-and-time-value{text-align:start;margin:0;min-height:1.5em}
+}
 .site-public input[type=checkbox],.site-public input[type=radio]{
   width:18px;height:18px;min-height:0;accent-color:var(--grn);padding:0;flex:none}
 .site-public .check-field{display:flex;gap:10px;align-items:center;font-size:14px;min-height:46px}
